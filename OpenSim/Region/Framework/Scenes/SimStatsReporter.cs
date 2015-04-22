@@ -577,18 +577,18 @@ namespace OpenSim.Region.Framework.Scenes
                 sb[26].StatID = (uint)Stats.ThreadCount;
                 sb[26].StatValue = m_inUseThreads;
                 
-                // Tracks the number of bytes that are received by the servers
+                // Tracks the number of bytes that are received by the server's
                 // UDP network handler
                 sb[27].StatID = (uint)Stats.UDPInRate;
                 sb[27].StatValue = (float) m_inByteRate;
                 
-                // Tracks the number of bytes that are sent by the servers UDP 
+                // Tracks the number of bytes that are sent by the server's UDP 
                 // network handler
                 sb[28].StatID = (uint)Stats.UDPOutRate;
                 sb[28].StatValue = (float) m_outByteRate;
                 
                 // Tracks the number of packets that were received by the 
-                // servers UDP network handler, that were unable to be processed
+                // server's UDP network handler, that were unable to be processed
                 sb[29].StatID = (uint)Stats.UDPErrorRate;
                 sb[29].StatValue = (float) m_errorPacketRate;
 
