@@ -27,6 +27,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Threading;
 using log4net;
@@ -44,13 +45,19 @@ namespace OpenSim.Region.ClientStack.LindenUDP
     /// <summary>
     /// Fired when updated networking stats are produced for this client
     /// </summary>
-    /// <param name="inPackets">Number of incoming packets received since this
-    /// event was last fired</param>
-    /// <param name="outPackets">Number of outgoing packets sent since this
-    /// event was last fired</param>
+    /// <param name="inPacketRate">Rate of incoming packets received</param>
+    /// <param name="outPacketRate">Rate of outgoing packets sent</param>
     /// <param name="unAckedBytes">Current total number of bytes in packets we
     /// are waiting on ACKs for</param>
-    public delegate void PacketStats(int inPackets, int outPackets, int unAckedBytes);
+    /// <param name="inByteRate">Rate of bytes received by incoming packets
+    /// </param>
+    /// <param name="outByteRate">Rate of bytes sent by outgoing packets
+    /// </param>
+    /// <param name="errorPacketRate">Rate of packets received that were unable
+    /// to be processed</param>
+    public delegate void PacketStats(double inPacketRate, double outPacketRate, 
+        int unAckedBytes, double inByteRate, double outByteRate, 
+        double errorPacketRate);
     /// <summary>
     /// Fired when the queue for one or more packet categories is empty. This 
     /// event can be hooked to put more data on the empty queues
@@ -159,6 +166,13 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         public int PacketsReceived;
         /// <summary>Number of packets sent to this client</summary>
         public int PacketsSent;
+        /// <summary>Number of bytes received from this client</summary>
+        public int m_bytesReceived;
+        /// <summary>Number of bytes sent to this client</summary>
+        public int m_bytesSent;
+        /// <summary>Number of packets that were corrupted and unable to be read
+        /// by this client</summary>
+        public int m_packetsUnreadable;
         /// <summary>Number of packets resent to this client</summary>
         public int PacketsResent;        
         /// <summary>Total byte count of unacked packets sent to this client</summary>
@@ -168,9 +182,23 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         private int m_packetsReceivedReported;
         /// <summary>Total number of sent packets that we have reported to the OnPacketStats event(s)</summary>
         private int m_packetsSentReported;
+        /// <summary>Total number of received bytes that have been reported to 
+        /// the OnPacketsStats event</summary>
+        private int m_bytesReceivedReported = 0;
+        /// <summary>Total number of sent bytes that have been reported to 
+        /// the OnPacketsStats event</summary>
+        private int m_bytesSentReported = 0;
+        /// <summary>Total number of unreadable packets that have been reported
+        /// to the OnPacketsStats event</summary>
+        private int m_packetsErrorReceived = 0;
         /// <summary>Holds the Environment.TickCount value of when the next OnQueueEmpty can be fired</summary>
         private int m_nextOnQueueEmpty = 1;
 
+        /// <summary>This is a stopwatch timer to track the precise amount of 
+        /// time between statistics updates in order to accurately track the 
+        /// statistics per second </summary>
+        private Stopwatch m_statsUpdateStopwatch = new Stopwatch();
+        
         /// <summary>Throttle bucket for this agent's connection</summary>
         private readonly AdaptiveTokenBucket m_throttleClient;
         public AdaptiveTokenBucket FlowThrottle
@@ -264,6 +292,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
             // Initialize this to a sane value to prevent early disconnects
             TickLastPacketReceived = Environment.TickCount & Int32.MaxValue;
+            
+            // Initialize the stopwatch for the first set of updates, afterwards
+            // the SendPacketStats method will be responsible
+            m_statsUpdateStopwatch.Start();
         }
 
         /// <summary>
@@ -282,6 +314,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             m_throttleClient.Parent.UnregisterRequest(m_throttleClient);
             OnPacketStats = null;
             OnQueueEmpty = null;
+            
+            // Make sure to stop the stopwatch when shutting down the client to 
+            // allow the garbage collector to clean it up
+            m_statsUpdateStopwatch.Stop();
         }
 
         /// <summary>
@@ -374,16 +410,55 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         public void SendPacketStats()
         {
+            double updateMS = 0.0;
+            int newPacketsReceived = 0;
+            int newPacketsSent = 0;
+            int newBytesReceived = 0;
+            int newBytesSent = 0;
+            int newErrorPackets = 0;
+        
             PacketStats callback = OnPacketStats;
             if (callback != null)
             {
-                int newPacketsReceived = PacketsReceived - m_packetsReceivedReported;
-                int newPacketsSent = PacketsSent - m_packetsSentReported;
+                // Calculate the difference between the current values that have
+                // been updated by the LLUDPServer and our current reported 
+                // totals to determine the change in the statistics
+                newPacketsReceived = PacketsReceived - 
+                    m_packetsReceivedReported;
+                newPacketsSent = PacketsSent - m_packetsSentReported;
+                newBytesReceived = m_bytesReceived - m_bytesReceivedReported;
+                newBytesSent = m_bytesSent - m_bytesSentReported;
+                newErrorPackets = m_packetsUnreadable - m_packetsErrorReceived;
 
-                callback(newPacketsReceived, newPacketsSent, UnackedBytes);
+                // Find the amount of time between statistics updates
+                m_statsUpdateStopwatch.Stop();
+                updateMS = m_statsUpdateStopwatch.Elapsed.TotalMilliseconds;
+                
+                // Send the statistics through the LLClientView.PopulateStats, 
+                // which will forward them to SimStatsReporter.AddPacketStats
+                // NOTE: The UDP Packets, Bytes, and Error reporting are rates 
+                // over time, since the time is not synchronous between the UDP 
+                // message parsing and statistics gathering, the rates are 
+                // calculated before reporting them
+                // NOTE: Casting the integers to doubles to avoid integer 
+                // truncation during division
+                callback((double) newPacketsReceived / (double) updateMS, 
+                    (double) newPacketsSent / (double) updateMS, 
+                    UnackedBytes, (double) newBytesReceived / (double) updateMS,
+                    (double) newBytesSent / (double) updateMS,
+                    (double) newErrorPackets / (double) updateMS);
 
+                // Update the currently reported statistics to include the 
+                // statistics that were just reported
                 m_packetsReceivedReported += newPacketsReceived;
                 m_packetsSentReported += newPacketsSent;
+                m_bytesReceivedReported += newBytesReceived;
+                m_bytesSentReported += newBytesSent;
+                m_packetsErrorReceived += newErrorPackets;
+                
+                // Make sure the stopwatch is tracking the time again, starting 
+                // from 0
+                m_statsUpdateStopwatch.Restart();
             }
         }
 

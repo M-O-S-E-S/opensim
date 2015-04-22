@@ -63,7 +63,7 @@ namespace OpenSim.Region.Framework.Scenes
 
         // Determines the size of the array that is used to collect StatBlocks
         // for sending to the SimStats and SimExtraStatsCollector
-        private const int m_statisticArraySize = 27;
+        private const int m_statisticArraySize = 30;
 
         /// <summary>
         /// These are the IDs of stats sent in the StatsPacket to the viewer.
@@ -113,7 +113,10 @@ namespace OpenSim.Region.Framework.Scenes
             UsersLoggingIn = 36,
             TotalGeoPrim = 37,
             TotalMesh = 38,
-            ThreadCount = 39
+            ThreadCount = 39,
+            UDPInRate = 40,
+            UDPOutRate = 41,
+            UDPErrorRate = 42
         }
 
         /// <summary>
@@ -213,8 +216,8 @@ namespace OpenSim.Region.Framework.Scenes
         private int m_numPrim;
         private int m_numGeoPrim;
         private int m_numMesh;
-        private int m_inPacketsPerSecond;
-        private int m_outPacketsPerSecond;
+        private double m_inPacketsPerSecond;
+        private double m_outPacketsPerSecond;
         private int m_activePrim;
         private int m_unAckedBytes;
         private int m_pendingDownloads;
@@ -251,6 +254,13 @@ namespace OpenSim.Region.Framework.Scenes
         // The last reported value of threads from the SmartThreadPool inside of
         // XEngine
         private int m_inUseThreads;
+        
+        // These variables record the most recent snapshot of the UDP network 
+        // by holding values for the bytes per second in and out, and the number
+        // of packets ignored per second
+        private double m_inByteRate = 0.0;
+        private double m_outByteRate = 0.0;
+        private double m_errorPacketRate = 0.0;
 
         private Scene m_scene;
 
@@ -520,10 +530,10 @@ namespace OpenSim.Region.Framework.Scenes
                   m_numberFramesStored;
 
                 sb[13].StatID = (uint)Stats.InPacketsPerSecond;
-                sb[13].StatValue = (m_inPacketsPerSecond / m_statsUpdateFactor);
+                sb[13].StatValue = (float) m_inPacketsPerSecond;
 
                 sb[14].StatID = (uint)Stats.OutPacketsPerSecond;
-                sb[14].StatValue = (m_outPacketsPerSecond / m_statsUpdateFactor);
+                sb[14].StatValue = (float) m_outPacketsPerSecond;
 
                 sb[15].StatID = (uint)Stats.UnAckedBytes;
                 sb[15].StatValue = m_unAckedBytes;
@@ -566,6 +576,21 @@ namespace OpenSim.Region.Framework.Scenes
                 // Current number of threads that XEngine is using
                 sb[26].StatID = (uint)Stats.ThreadCount;
                 sb[26].StatValue = m_inUseThreads;
+                
+                // Tracks the number of bytes that are received by the servers
+                // UDP network handler
+                sb[27].StatID = (uint)Stats.UDPInRate;
+                sb[27].StatValue = (float) m_inByteRate;
+                
+                // Tracks the number of bytes that are sent by the servers UDP 
+                // network handler
+                sb[28].StatID = (uint)Stats.UDPOutRate;
+                sb[28].StatValue = (float) m_outByteRate;
+                
+                // Tracks the number of packets that were received by the 
+                // servers UDP network handler, that were unable to be processed
+                sb[29].StatID = (uint)Stats.UDPErrorRate;
+                sb[29].StatValue = (float) m_errorPacketRate;
 
                 for (int i = 0; i < m_statisticArraySize; i++)
                 {
@@ -787,11 +812,16 @@ namespace OpenSim.Region.Framework.Scenes
             m_scriptLinesPerSecond += count;
         }
 
-        public void AddPacketsStats(int inPackets, int outPackets, int unAckedBytes)
+        public void AddPacketsStats(double inPacketRate, double outPacketRate, 
+            int unAckedBytes, double inByteRate, double outByteRate, 
+            double errorPacketRate)
         {
-            AddInPackets(inPackets);
-            AddOutPackets(outPackets);
+            m_inPacketsPerSecond = inPacketRate;
+            m_outPacketsPerSecond = outPacketRate;
             AddunAckedBytes(unAckedBytes);
+            m_inByteRate = inByteRate;
+            m_outByteRate = outByteRate;
+            m_errorPacketRate = errorPacketRate;
         }
 
         public void UpdateUsersLoggingIn(bool isLoggingIn)

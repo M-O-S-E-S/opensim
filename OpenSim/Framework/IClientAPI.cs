@@ -62,7 +62,9 @@ namespace OpenSim.Framework
         float height, float seconds, byte size, byte action, float north, float west, float south, float east,
         UUID agentId);
 
-    public delegate void NetworkStats(int inPackets, int outPackets, int unAckedBytes);
+    public delegate void NetworkStats(double inPacketRate, double outPacketRate, 
+        int unAckedBytes, double inByteRate, double outByteRate, 
+        double errorPacketRate);
 
     public delegate void CachedTextureRequest(IClientAPI remoteClient, int serial, List<CachedTextureRequestArg> cachedTextureRequest);
 

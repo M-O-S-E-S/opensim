@@ -77,6 +77,9 @@ namespace OpenSim.Framework.Monitoring
         private volatile float m_totalGeoPrims;
         private volatile float m_totalMeshes;
         private volatile float m_inUseThreads;
+        private volatile float m_inByteRate;
+        private volatile float m_outByteRate;
+        private volatile float m_errorPacketRate;
 
 //        /// <summary>
 //        /// These statistics are being collected by push rather than pull.  Pull would be simpler, but I had the
@@ -285,6 +288,9 @@ namespace OpenSim.Framework.Monitoring
             m_totalGeoPrims         = stats.StatsBlock[24].StatValue;
             m_totalMeshes           = stats.StatsBlock[25].StatValue;
             m_inUseThreads          = stats.StatsBlock[26].StatValue;
+            m_inByteRate            = stats.StatsBlock[27].StatValue;
+            m_outByteRate           = stats.StatsBlock[28].StatValue;
+            m_errorPacketRate       = stats.StatsBlock[29].StatValue;
         }
 
         /// <summary>
@@ -491,6 +497,12 @@ Asset service request failures: {3}" + Environment.NewLine,
                 "{0:0.##}", numberThreadsRunning));
             args["ProcMem"] = OSD.FromString(String.Format("{0:#,###,###.##}",
                 memUsage));
+            args["UDPIn"] = OSD.FromString(String.Format("{0:0.##}",
+                m_inByteRate));
+            args["UDPOut"] = OSD.FromString(String.Format("{0:0.##}",
+                m_outByteRate));
+            args["UDPInError"] = OSD.FromString(String.Format("{0:0.##}",
+                m_errorPacketRate));
             
             return args;
         }
