@@ -63,7 +63,7 @@ namespace OpenSim.Region.Framework.Scenes
 
         // Determines the size of the array that is used to collect StatBlocks
         // for sending to the SimStats and SimExtraStatsCollector
-        private const int m_statisticArraySize = 30;
+        private const int m_statisticArraySize = 31;
 
         /// <summary>
         /// These are the IDs of stats sent in the StatsPacket to the viewer.
@@ -116,7 +116,8 @@ namespace OpenSim.Region.Framework.Scenes
             ThreadCount = 39,
             UDPInRate = 40,
             UDPOutRate = 41,
-            UDPErrorRate = 42
+            UDPErrorRate = 42,
+            NetworkQueueSize = 43
         }
 
         /// <summary>
@@ -239,10 +240,12 @@ namespace OpenSim.Region.Framework.Scenes
         private double[] m_simulationFrameTimeMilliseconds;
         private double[] m_physicsFrameTimeMilliseconds;
         private double[] m_networkFrameTimeMilliseconds;
+        private int[] m_networkQueueSize;
 
         // The location of the next time in milliseconds that will be
         // (over)written when the next frame completes
         private int m_nextLocation = 0;
+        private int m_netLocation = 0;
 
         // The correct number of frames that have completed since the last stats
         // update for physics
@@ -277,6 +280,7 @@ namespace OpenSim.Region.Framework.Scenes
             m_simulationFrameTimeMilliseconds = new double[m_numberFramesStored];
             m_physicsFrameTimeMilliseconds = new double[m_numberFramesStored];
             m_networkFrameTimeMilliseconds = new double[m_numberFramesStored];
+            m_networkQueueSize = new int[m_numberFramesStored];
 
             // Initialize the current number of users logging into the region
             m_usersLoggingIn = 0;
@@ -359,6 +363,7 @@ namespace OpenSim.Region.Framework.Scenes
             double simulationSumFrameTime;
             double physicsSumFrameTime;
             double networkSumFrameTime;
+            double networkSumQueueSize;
             float frameDilation;
             int currentFrame;
 
@@ -456,6 +461,7 @@ namespace OpenSim.Region.Framework.Scenes
                 simulationSumFrameTime = 0;
                 physicsSumFrameTime = 0;
                 networkSumFrameTime = 0;
+                networkSumQueueSize = 0;
 
                 // Loop through all the frames that were stored for the current
                 // heartbeat to process the moving average of frame times
@@ -468,6 +474,7 @@ namespace OpenSim.Region.Framework.Scenes
                         m_simulationFrameTimeMilliseconds[i];
                     physicsSumFrameTime += m_physicsFrameTimeMilliseconds[i];
                     networkSumFrameTime += m_networkFrameTimeMilliseconds[i];
+                    networkSumQueueSize += m_networkQueueSize[i];
                 }
 
                 // Get the index that represents the current frame based on the next one known; go back
@@ -592,6 +599,11 @@ namespace OpenSim.Region.Framework.Scenes
                 sb[29].StatID = (uint)Stats.UDPErrorRate;
                 sb[29].StatValue = (float) m_errorPacketRate;
 
+                // Track the queue size of the network as a moving average
+                sb[30].StatID = (uint)Stats.NetworkQueueSize;
+                sb[30].StatValue = (float) networkSumQueueSize / 
+                    m_numberFramesStored;
+                
                 for (int i = 0; i < m_statisticArraySize; i++)
                 {
                     lastReportedSimStats[i] = sb[i].StatValue;
@@ -779,14 +791,13 @@ namespace OpenSim.Region.Framework.Scenes
       }
 
       public void addFrameTimeMilliseconds(double total, double simulation,
-         double physics, double network)
+         double physics)
       {
          // Save the frame times from the current frame into the appropriate
          // arrays
          m_totalFrameTimeMilliseconds[m_nextLocation] = total;
          m_simulationFrameTimeMilliseconds[m_nextLocation] = simulation;
          m_physicsFrameTimeMilliseconds[m_nextLocation] = physics;
-         m_networkFrameTimeMilliseconds[m_nextLocation] = network;
 
          // Update to the next location in the list
          m_nextLocation++;
@@ -822,6 +833,16 @@ namespace OpenSim.Region.Framework.Scenes
             m_inByteRate = inByteRate;
             m_outByteRate = outByteRate;
             m_errorPacketRate = errorPacketRate;
+        }
+        
+        public void AddPacketProcessStats(double processTime, int queueSize)
+        {
+            m_networkFrameTimeMilliseconds[m_netLocation] = processTime;
+            m_networkQueueSize[m_netLocation] = queueSize;
+            
+            m_netLocation++;
+            
+            m_netLocation = m_netLocation % m_numberFramesStored;
         }
 
         public void UpdateUsersLoggingIn(bool isLoggingIn)

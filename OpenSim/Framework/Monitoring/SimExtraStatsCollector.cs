@@ -80,6 +80,7 @@ namespace OpenSim.Framework.Monitoring
         private volatile float m_inByteRate;
         private volatile float m_outByteRate;
         private volatile float m_errorPacketRate;
+        private volatile float m_queueSize;
 
 //        /// <summary>
 //        /// These statistics are being collected by push rather than pull.  Pull would be simpler, but I had the
@@ -291,6 +292,7 @@ namespace OpenSim.Framework.Monitoring
             m_inByteRate            = stats.StatsBlock[27].StatValue;
             m_outByteRate           = stats.StatsBlock[28].StatValue;
             m_errorPacketRate       = stats.StatsBlock[29].StatValue;
+            m_queueSize             = stats.StatsBlock[30].StatValue;
         }
 
         /// <summary>
@@ -473,7 +475,10 @@ Asset service request failures: {3}" + Environment.NewLine,
             args["PendUl"] = OSD.FromString (String.Format ("{0:0.##}", pendingUploads));
             args["UnackB"] = OSD.FromString (String.Format ("{0:0.##}", unackedBytes));
             args["TotlFt"] = OSD.FromString (String.Format ("{0:0.##}", totalFrameTime));
-            args["NetFt"] = OSD.FromString (String.Format ("{0:0.##}", netFrameTime));
+            args["NetEvtTime"] = OSD.FromString (String.Format ("{0:0.##}", 
+                netFrameTime));
+            args["NetQSize"] = OSD.FromString(String.Format("{0:0.##}", 
+                m_queueSize));
             args["PhysFt"] = OSD.FromString (String.Format ("{0:0.##}", physicsFrameTime));
             args["OthrFt"] = OSD.FromString (String.Format ("{0:0.##}", otherFrameTime));
             args["AgntFt"] = OSD.FromString (String.Format ("{0:0.##}", agentFrameTime));

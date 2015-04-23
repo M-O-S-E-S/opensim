@@ -1883,7 +1883,7 @@ namespace OpenSim.Region.Framework.Scenes
             // Send the correct time values to the stats reporter for the
             // frame times
             StatsReporter.addFrameTimeMilliseconds(preciseTotalFrameTime,
-               preciseSimFrameTime, precisePhysicsFrameTime, 0.0);
+               preciseSimFrameTime, precisePhysicsFrameTime);
 
             // Send the correct number of frames that the physics library
             // has processed to the stats reporter
