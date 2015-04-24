@@ -1898,7 +1898,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
     
             // Create a timer to track how long it takes to process a packet    
-            Stopwatch packetTimer = new Stopwatch();
+            Stopwatch packetStopwatch = new Stopwatch();
                  
             // Set this culture for the thread that incoming packets are received
             // on to en-US to avoid number parsing issues
@@ -1924,7 +1924,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     {
                         // Reset the timer to zero and begin counting the time
                         // it takes for the current packet to be processed
-                        packetTimer.Restart();
+                        packetStopwatch.Restart();
                     
                         ProcessInPacket(incomingPacket);//, incomingPacket); Util.FireAndForget(ProcessInPacket, incomingPacket);
 
@@ -1933,12 +1933,12 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                             
                         // Stop the timer to get an accurate time that the 
                         // incoming packet took to process
-                        packetTimer.Stop();
+                        packetStopwatch.Stop();
                         
                         // Report the time and queue size to the 
                         // SimStatsReporter
                         Scene.StatsReporter.AddPacketProcessStats(
-                            packetTimer.Elapsed.TotalMilliseconds, 
+                            packetStopwatch.Elapsed.TotalMilliseconds, 
                             packetInbox.Count);
                     }
                 }

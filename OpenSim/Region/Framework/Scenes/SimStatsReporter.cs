@@ -837,11 +837,16 @@ namespace OpenSim.Region.Framework.Scenes
         
         public void AddPacketProcessStats(double processTime, int queueSize)
         {
+            // Store the time that it took to process the most recent UDP 
+            // message and the size of the UDP network in queue
             m_networkFrameTimeMilliseconds[m_netLocation] = processTime;
             m_networkQueueSize[m_netLocation] = queueSize;
             
             m_netLocation++;
             
+            // Since the list will begin to overwrite the oldest frame values
+            // first, the network location needs to loop back to the beginning 
+            // of the list whenever it reaches the end
             m_netLocation = m_netLocation % m_numberFramesStored;
         }
 
