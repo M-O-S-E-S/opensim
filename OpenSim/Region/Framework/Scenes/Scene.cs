@@ -1154,8 +1154,8 @@ namespace OpenSim.Region.Framework.Scenes
                statisticsConfig.GetInt("NumberOfFrames", 10));
 
             // Get the number of clients that the server will ping and the frequency
-            // that it will ping them; default values to 3 if either value not found
-            m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", 3);
+            // that it will ping them; set default values if either value not found
+            m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", 1);
             m_clientPingFreq = statisticsConfig.GetDouble("ClientPingFrequnecy", 3);
          }
          else
@@ -1166,7 +1166,7 @@ namespace OpenSim.Region.Framework.Scenes
 
             // Set the default values for the numer of clients the server will ping and at
             // what frequency it will ping them
-            m_clientPingSubset = 3;
+            m_clientPingSubset = 1;
             m_clientPingFreq = 3;
          }
 
