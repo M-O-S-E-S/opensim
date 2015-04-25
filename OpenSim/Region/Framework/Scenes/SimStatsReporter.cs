@@ -63,7 +63,7 @@ namespace OpenSim.Region.Framework.Scenes
 
         // Determines the size of the array that is used to collect StatBlocks
         // for sending to the SimStats and SimExtraStatsCollector
-        private const int m_statisticArraySize = 31;
+        private const int m_statisticArraySize = 32;
 
         /// <summary>
         /// These are the IDs of stats sent in the StatsPacket to the viewer.
@@ -117,7 +117,8 @@ namespace OpenSim.Region.Framework.Scenes
             UDPInRate = 40,
             UDPOutRate = 41,
             UDPErrorRate = 42,
-            NetworkQueueSize = 43
+            NetworkQueueSize = 43,
+            ClientPingAvg = 44
         }
 
         /// <summary>
@@ -264,6 +265,13 @@ namespace OpenSim.Region.Framework.Scenes
         private double m_inByteRate = 0.0;
         private double m_outByteRate = 0.0;
         private double m_errorPacketRate = 0.0;
+
+        // Average ping between the server and a subset of connected users
+        private double m_clientPing = 0.0;
+
+        // Keeps track of the total ping time, and the number, of all connected clients pinged
+        private double m_totalPingTime = 0;
+        private int m_clientPingCount = 0;
 
         private Scene m_scene;
 
@@ -603,6 +611,9 @@ namespace OpenSim.Region.Framework.Scenes
                 sb[30].StatID = (uint)Stats.NetworkQueueSize;
                 sb[30].StatValue = (float) networkSumQueueSize / 
                     m_numberFramesStored;
+
+                sb[31].StatID = (uint)Stats.ClientPingAvg;
+                sb[31].StatValue = (float) m_clientPing;
                 
                 for (int i = 0; i < m_statisticArraySize; i++)
                 {
@@ -873,6 +884,23 @@ namespace OpenSim.Region.Framework.Scenes
             // Save the new number of threads to our member variable to send to
             // the extra stats collector
             m_inUseThreads = inUseThreads;
+        }
+
+        public void AddClientPingTime(double pingTime, int subset)
+        {
+            // Keep track of the total ping time from various clients
+            m_totalPingTime += pingTime;
+
+            // Increment the number of clients pinged and check to see if we've reached
+            // the desired number of clients
+            m_clientPingCount++;
+            if (m_clientPingCount >= subset)
+            {
+                // Calculate the ping average between the server and its connected clients, then
+                // reset the client count
+                m_clientPing = m_totalPingTime / (double)m_clientPingCount;;
+                m_clientPingCount = 0;
+            }
         }
 
         #endregion
