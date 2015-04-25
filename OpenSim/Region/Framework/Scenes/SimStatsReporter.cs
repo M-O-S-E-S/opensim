@@ -612,6 +612,7 @@ namespace OpenSim.Region.Framework.Scenes
                 sb[30].StatValue = (float) networkSumQueueSize / 
                     m_numberFramesStored;
 
+                // Current average ping between the server and a subset of its conneced users
                 sb[31].StatID = (uint)Stats.ClientPingAvg;
                 sb[31].StatValue = (float) m_clientPing;
                 

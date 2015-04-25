@@ -512,10 +512,10 @@ namespace OpenSim.Region.Framework.Scenes
       private Timer m_mapGenerationTimer = new Timer();
       private bool m_generateMaptiles;
 
-      private List<AgentCircuitData> m_agentList = new List<AgentCircuitData>();
-      private Dictionary<string, bool> m_clientPingDict = new Dictionary<string,bool>();
-
-      private Dictionary<string, bool> m_clientIPDict = new Dictionary<string,bool>();
+      /// <summary>
+      /// Dictionary of connected clients' IP addresses and their current ping status
+      /// </summary>
+      private Dictionary<string, bool> m_clientPingDict = new Dictionary<string, bool>();
 
       /// <summary>
       /// Used to allow pinging connected clients at a desired frequency.
