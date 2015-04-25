@@ -29,7 +29,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text;
+using System.Timers;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework.Monitoring.Interfaces;
@@ -50,6 +52,13 @@ namespace OpenSim.Framework.Monitoring
 
 //        private long assetServiceRequestFailures;
 //        private long inventoryServiceRetrievalFailures;
+
+        private Ping m_externalPingSender;
+        private Timer m_externalPingTimer;
+        private string m_externalServerName = "www.my.ucf.edu";
+        private double m_externalPingFreq = 3.0;
+        private double m_avgPing = 0.0;
+        private bool m_pingCompleted;
 
         private volatile float timeDilation;
         private volatile float simFps;
@@ -81,6 +90,7 @@ namespace OpenSim.Framework.Monitoring
         private volatile float m_outByteRate;
         private volatile float m_errorPacketRate;
         private volatile float m_queueSize;
+        private volatile float m_clientPing;
 
 //        /// <summary>
 //        /// These statistics are being collected by push rather than pull.  Pull would be simpler, but I had the
@@ -125,7 +135,7 @@ namespace OpenSim.Framework.Monitoring
         public float PendingUploads { get { return pendingUploads; } }
         public float ActiveScripts { get { return activeScripts; } }
         public float ScriptLinesPerSecond { get { return scriptLinesPerSecond; } }
-        
+
 //        /// <summary>
 //        /// This is the time it took for the last asset request made in response to a cache miss.
 //        /// </summary>
@@ -169,6 +179,42 @@ namespace OpenSim.Framework.Monitoring
         /// </summary>
         private IDictionary<UUID, PacketQueueStatsCollector> packetQueueStatsCollectors
             = new Dictionary<UUID, PacketQueueStatsCollector>();
+
+        public SimExtraStatsCollector()
+        {
+            // Call the following methods callback methods, for client and external pings,
+            // whenever the PingCompleted event is raised
+            m_externalPingSender = new Ping();
+            m_externalPingSender.PingCompleted +=
+                (sender, e) =>
+                {
+                    // Get the ping time if request succeeded, otherwise save a
+                    // value of -1 to indicate failure
+                    if (e.Reply.Status == IPStatus.Success)
+                        m_avgPing = e.Reply.RoundtripTime;
+                    else
+                        m_avgPing = -1;
+
+                    // Indicate that ping to external server has completed
+                    m_pingCompleted = true;
+                };
+
+            // Call the PingExternal method, at the specifed time interval, whenever
+            // the PingCompleted event is raised
+            m_externalPingTimer = new Timer(m_externalPingFreq * 1000);
+            m_externalPingTimer.AutoReset = true;
+            m_externalPingTimer.Elapsed += PingExternal;
+
+            // Start the timer to ping the external server
+            m_pingCompleted = true;
+            m_externalPingTimer.Start();
+        }
+
+        ~SimExtraStatsCollector()
+        {
+            // Stop the timer to ping the external server
+            m_externalPingTimer.Stop();
+        }
 
 //        public void AddAsset(AssetBase asset)
 //        {
@@ -293,6 +339,7 @@ namespace OpenSim.Framework.Monitoring
             m_outByteRate           = stats.StatsBlock[28].StatValue;
             m_errorPacketRate       = stats.StatsBlock[29].StatValue;
             m_queueSize             = stats.StatsBlock[30].StatValue;
+            m_clientPing            = stats.StatsBlock[31].StatValue;
         }
 
         /// <summary>
@@ -502,14 +549,30 @@ Asset service request failures: {3}" + Environment.NewLine,
                 "{0:0.##}", numberThreadsRunning));
             args["ProcMem"] = OSD.FromString(String.Format("{0:#,###,###.##}",
                 memUsage));
+
             args["UDPIn"] = OSD.FromString(String.Format("{0:0.##}",
                 m_inByteRate));
             args["UDPOut"] = OSD.FromString(String.Format("{0:0.##}",
                 m_outByteRate));
             args["UDPInError"] = OSD.FromString(String.Format("{0:0.##}",
                 m_errorPacketRate));
+            args["ClientPing"] = OSD.FromString(String.Format("{0:0.##}", m_clientPing));
+            args["AvgPing"] = OSD.FromString(String.Format("{0:0.######}", m_avgPing));
             
             return args;
+        }
+
+        private void PingExternal(object sender, ElapsedEventArgs e)
+        {
+            // Make sure that there is no pending ping
+            if (m_pingCompleted)
+            {
+                // Asynchronous send a ping to the designated external server's address
+                m_externalPingSender.SendAsync(m_externalServerName, null);
+
+                // Indicate that a ping was just sent
+                m_pingCompleted = false;
+            }
         }
     }
 
