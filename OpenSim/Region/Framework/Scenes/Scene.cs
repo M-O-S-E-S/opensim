@@ -31,6 +31,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading;
 using System.Timers;
@@ -510,6 +511,19 @@ namespace OpenSim.Region.Framework.Scenes
 
       private Timer m_mapGenerationTimer = new Timer();
       private bool m_generateMaptiles;
+
+      private List<AgentCircuitData> m_agentList = new List<AgentCircuitData>();
+      private Dictionary<string, bool> m_clientPingDict = new Dictionary<string,bool>();
+
+      private Dictionary<string, bool> m_clientIPDict = new Dictionary<string,bool>();
+
+      /// <summary>
+      /// Used to allow pinging connected clients at a desired frequency.
+      /// </summary>
+      private Ping m_clientPingSender;
+      private Timer m_clientPingTimer;
+      private int m_clientPingSubset;
+      private double m_clientPingFreq;
 
       #endregion Fields
 
@@ -1138,12 +1152,22 @@ namespace OpenSim.Region.Framework.Scenes
             // file doesn't contain a value
             StatsReporter = new SimStatsReporter(this,
                statisticsConfig.GetInt("NumberOfFrames", 10));
+
+            // Get the number of clients that the server will ping and the frequency
+            // that it will ping them; default values to 3 if either value not found
+            m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", 3);
+            m_clientPingFreq = statisticsConfig.GetDouble("ClientPingFrequnecy", 3);
          }
          else
          {
             // Create a StatsReporter with the current scene and a default
             // 10 frames stored for the frame time statistics
             StatsReporter = new SimStatsReporter(this);
+
+            // Set the default values for the numer of clients the server will ping and at
+            // what frequency it will ping them
+            m_clientPingSubset = 3;
+            m_clientPingFreq = 3;
          }
 
          StatsReporter.OnSendStatsResult += SendSimStatsPackets;
@@ -1394,6 +1418,13 @@ namespace OpenSim.Region.Framework.Scenes
          m_restartTimer.Stop();
          m_restartTimer.Close();
 
+         // Stop the timer to ping clients
+         if (m_clientPingTimer != null)
+         {
+            m_clientPingTimer.Stop();
+            m_clientPingTimer.Close();
+         }
+
          // Kick all ROOT agents with the message, 'The simulator is going down'
          ForEachScenePresence(delegate(ScenePresence avatar)
          {
@@ -1470,6 +1501,9 @@ namespace OpenSim.Region.Framework.Scenes
                  Heartbeat, string.Format("Heartbeat-({0})", RegionInfo.RegionName.Replace(" ", "_")), ThreadPriority.Normal, false, false);
 
          StartScripts();
+
+         // Begin pinging connected clients
+         StartPingRequests();
       }
 
       /// <summary>
@@ -1489,6 +1523,32 @@ namespace OpenSim.Region.Framework.Scenes
          m_groupsModule = RequestModuleInterface<IGroupsModule>();
          AgentTransactionsModule = RequestModuleInterface<IAgentAssetTransactions>();
          UserManagementModule = RequestModuleInterface<IUserManagement>();
+      }
+
+      private void StartPingRequests()
+      {
+         // Create new instance to allow for pinging specified networks
+         m_clientPingSender = new Ping();
+
+         // Call the following callback method, for client pings,
+         // whenever the PingCompleted event is raised
+         m_clientPingSender.PingCompleted +=
+             (sender, e) =>
+             {
+                // Add the reported ping time to the stats reporter
+                StatsReporter.AddClientPingTime(e.Reply.RoundtripTime, m_clientPingSubset);
+
+                // Indicate that the client at this IP address is no longer pending a ping request
+                m_clientPingDict[e.Reply.Address.ToString()] = false;
+             };
+
+         // Create the timer to continually ping connected clients, within the specified interval
+         m_clientPingTimer = new Timer(m_clientPingFreq * 1000);
+         m_clientPingTimer.AutoReset = true;
+         m_clientPingTimer.Elapsed += PingClient;
+
+         // Start the timer to ping clients
+         m_clientPingTimer.Start();
       }
 
       #endregion
@@ -2068,6 +2128,31 @@ namespace OpenSim.Region.Framework.Scenes
                info.reason = reason;
                m_returns[agentID] = info;
             }
+         }
+      }
+
+      private void PingClient(object sender, ElapsedEventArgs e)
+      {
+         // Makes sure that there are clients already connected
+         if (m_clientPingDict.Count == 0)
+            return;
+
+         // Generate a random index based on the number of connected clients
+         Random rnd = new Random();
+         int index = rnd.Next(m_clientPingDict.Count);
+
+         // Get the list of IP addresses from the client dictionary and grab one of
+         // the client's IP addresses with the random index
+         List<string> ipList = new List<string>(m_clientPingDict.Keys);
+         string ipAddress = ipList[index];
+
+         // Make sure that the selected client isn't already pending a ping request
+         if (m_clientPingDict[ipAddress] == false)
+         {
+            // Asynchronously send a ping to the client and state that the request,
+            // for this client, was sent
+            m_clientPingSender.SendAsync(ipAddress, null);
+            m_clientPingDict[ipAddress] = true;
          }
       }
 
@@ -2908,6 +2993,9 @@ namespace OpenSim.Region.Framework.Scenes
 
             if (vialogin)
                EventManager.TriggerOnClientLogin(client);
+
+            // Save the newly logged in client's IP address and state that it is not being pinged yet
+            m_clientPingDict.Add(aCircuit.IPAddress, false);
          }
 
          // User has logged into the scene so update the list of users logging
@@ -3464,6 +3552,9 @@ namespace OpenSim.Region.Framework.Scenes
          lock (acd)
          {
             bool isChildAgent = false;
+
+            // Remove reference to the client's IP address
+            m_clientPingDict.Remove(acd.IPAddress);
 
             ScenePresence avatar = GetScenePresence(agentID);
 
