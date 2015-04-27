@@ -1532,15 +1532,7 @@ namespace OpenSim.Region.Framework.Scenes
 
          // Call the following callback method, for client pings,
          // whenever the PingCompleted event is raised
-         m_clientPingSender.PingCompleted +=
-             (sender, e) =>
-             {
-                // Add the reported ping time to the stats reporter
-                StatsReporter.AddClientPingTime(e.Reply.RoundtripTime, m_clientPingSubset);
-
-                // Indicate that the client at this IP address is no longer pending a ping request
-                m_clientPingDict[e.Reply.Address.ToString()] = false;
-             };
+         m_clientPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
 
          // Create the timer to continually ping connected clients, within the specified interval
          m_clientPingTimer = new Timer(m_clientPingFreq * 1000);
@@ -2154,6 +2146,15 @@ namespace OpenSim.Region.Framework.Scenes
             m_clientPingSender.SendAsync(ipAddress, null);
             m_clientPingDict[ipAddress] = true;
          }
+      }
+
+      private void PingCompletedCallback(object sender, PingCompletedEventArgs e)
+      {
+         // Add the reported ping time to the stats repoter
+         StatsReporter.AddClientPingTime(e.Reply.RoundtripTime, m_clientPingSubset);
+
+         // Indicate that the clinet at this IP address is no longer pending a ping request
+         m_clientPingDict[e.Reply.Address.ToString()] = false;
       }
 
       #endregion

@@ -185,19 +185,7 @@ namespace OpenSim.Framework.Monitoring
             // Call the following methods callback methods, for client and external pings,
             // whenever the PingCompleted event is raised
             m_externalPingSender = new Ping();
-            m_externalPingSender.PingCompleted +=
-                (sender, e) =>
-                {
-                    // Get the ping time if request succeeded, otherwise save a
-                    // value of -1 to indicate failure
-                    if (e.Reply.Status == IPStatus.Success)
-                        m_avgPing = e.Reply.RoundtripTime;
-                    else
-                        m_avgPing = -1;
-
-                    // Indicate that ping to external server has completed
-                    m_pingCompleted = true;
-                };
+            m_externalPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
 
             // Call the PingExternal method, at the specifed time interval, whenever
             // the PingCompleted event is raised
@@ -560,6 +548,19 @@ Asset service request failures: {3}" + Environment.NewLine,
             args["AvgPing"] = OSD.FromString(String.Format("{0:0.######}", m_avgPing));
             
             return args;
+        }
+
+        private void PingCompletedCallback(object sender, PingCompletedEventArgs e)
+        {
+            // Get the ping time if request succeeded, otherwise save a
+            // value of -1 to indicate failure
+            if (e.Reply.Status == IPStatus.Success)
+                m_avgPing = e.Reply.RoundtripTime;
+            else
+                m_avgPing = -1;
+
+            // Indicate that ping to external server has completed
+            m_pingCompleted = true;
         }
 
         private void PingExternal(object sender, ElapsedEventArgs e)
