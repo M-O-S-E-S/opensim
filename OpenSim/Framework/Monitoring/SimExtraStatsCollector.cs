@@ -186,8 +186,8 @@ namespace OpenSim.Framework.Monitoring
 
         public SimExtraStatsCollector()
         {
-            // Set the default values, related to ping requests, for the external server
-            // name and the frequnecy to ping it, to its constant 
+            // Set the default constant values, related to ping requests, for the external server
+            // name and the frequnecy to ping it
             m_externalServerName = m_defaultServerName;
             m_externalPingFreq = m_pingFrequency;
 
