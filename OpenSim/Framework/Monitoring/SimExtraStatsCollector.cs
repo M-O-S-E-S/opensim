@@ -578,9 +578,6 @@ Asset service request failures: {3}" + Environment.NewLine,
             m_externalPingSender = new Ping();
             m_externalPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
 
-            // Create new timer with the specified ping frequency; add the PingExternal method as one of
-            // the methods to be called when the Elapsed delegate is invoked
-
             // Create timer to continually ping connected clients, within the specified frequency; add the
             // PingExternal method as one of the methods to be called when the Timer's Elapsed delegate is
             // invoked
