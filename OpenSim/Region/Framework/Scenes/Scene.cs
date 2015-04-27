@@ -2147,7 +2147,8 @@ namespace OpenSim.Region.Framework.Scenes
             return;
 
          // Choose a random client to ping for better assurance that the same clients aren't
-         // always pinged; generate a random index to use in the list of conneced clients
+         // always pinged; generate a random index to use in the list of conneced clients; the
+         // default seed value, for the random class, is derived by the system clock
          Random rnd = new Random();
          int index = rnd.Next(m_clientPingDict.Count);
 
