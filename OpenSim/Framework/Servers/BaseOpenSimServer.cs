@@ -91,7 +91,7 @@ namespace OpenSim.Framework.Servers
         /// </summary>
         protected virtual void StartupSpecific()
         {
-            StatsManager.SimExtraStats = new SimExtraStatsCollector();
+            StatsManager.SimExtraStats = new SimExtraStatsCollector(Config);
             RegisterCommonCommands();
             RegisterCommonComponents(Config);
 
