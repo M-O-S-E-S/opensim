@@ -186,13 +186,7 @@ namespace OpenSim.Framework.Monitoring
 
         public SimExtraStatsCollector()
         {
-            // Set the default constant values, related to ping requests, for the external server
-            // name and the frequnecy to ping it
-            m_externalServerName = m_defaultServerName;
-            m_externalPingFreq = m_pingFrequency;
-
-            // Begin pinging the external server
-            StartPingRequests();
+            // Default constructor
         }
 
         public SimExtraStatsCollector(IConfigSource config)
@@ -202,27 +196,29 @@ namespace OpenSim.Framework.Monitoring
             IConfig statsConfig = config.Configs["Statistics"];
             if (statsConfig != null)
             {
-                // Get the name for the external server to ping and the frequency to ping it; use
-                // the default constant values of neither were found in the configuration
-                m_externalServerName = statsConfig.GetString("ExternalServer", m_defaultServerName);
-                m_externalPingFreq = statsConfig.GetDouble("ExternalPingFrequency", m_pingFrequency);
-            }
-            else
-            {
-                // The statistics section was not found in the configuration file so use the
-                // default constant values for the external server name and the ping frequency
-                m_externalServerName = m_defaultServerName;
-                m_externalPingFreq = m_pingFrequency;
-            }
+                // Check if the configuration enables pinging the external server; disabled
+                // by default
+                bool pingServer = statsConfig.GetBoolean("PingExternalServerEnabled", false);
 
-            // Begin pinging the external server
-            StartPingRequests();
+                // Get the rest of the values, for ping requests, if enabled
+                if (pingServer)
+                {
+                    // Get the name for the external server to ping and the frequency to ping it; use
+                    // the default constant values of neither were found in the configuration
+                    m_externalServerName = statsConfig.GetString("ExternalServer", m_defaultServerName);
+                    m_externalPingFreq = statsConfig.GetDouble("ExternalPingFrequency", m_pingFrequency);
+
+                    // Begin pinging the external server
+                    StartPingRequests();
+                }
+            }
         }
 
         ~SimExtraStatsCollector()
         {
             // Stop the timer to ping the external server
-            m_externalPingTimer.Stop();
+            if (m_externalPingTimer != null)
+               m_externalPingTimer.Stop();
         }
 
 //        public void AddAsset(AssetBase asset)

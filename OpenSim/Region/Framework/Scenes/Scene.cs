@@ -526,10 +526,12 @@ namespace OpenSim.Region.Framework.Scenes
 
       /// <summary>
       /// Used to allow pinging connected clients at a desired frequency. Set the default values
-      /// for the subset of connected clients to ping at the default frequency.
+      /// for the subset of connected clients to ping at the default frequency. By default,
+      /// ping requests are disabled.
       /// </summary>
       private Ping m_clientPingSender;
       private Timer m_clientPingTimer;
+      private bool m_pingClients = false;
       private int m_clientPingSubset = m_clientSubset;
       private double m_clientPingFreq = m_pingFrequency;
 
@@ -1161,21 +1163,23 @@ namespace OpenSim.Region.Framework.Scenes
             StatsReporter = new SimStatsReporter(this,
                statisticsConfig.GetInt("NumberOfFrames", 10));
 
-            // Get the number of clients that the server will ping and the frequency
-            // that it will ping them; set default contant values if either value not found
-            m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", m_clientSubset);
-            m_clientPingFreq = statisticsConfig.GetDouble("ClientPingFrequnecy", m_pingFrequency);
+            // Check if the configuration enables pinging the clients; disabled by default
+            m_pingClients = statisticsConfig.GetBoolean("PingClientEnabled", false);
+
+            // Get the rest of the values, for ping requests, if enabled
+            if (m_pingClients)
+            {
+                // Get the number of clients that the server will ping and the frequency
+                // that it will ping them; set default contant values if either value not found
+                m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", m_clientSubset);
+                m_clientPingFreq = statisticsConfig.GetDouble("ClientPingFrequnecy", m_pingFrequency);
+            }
          }
          else
          {
             // Create a StatsReporter with the current scene and a default
             // 10 frames stored for the frame time statistics
             StatsReporter = new SimStatsReporter(this);
-
-            // Set the default, constant values for the numer of clients the server will ping at
-            // what frequency it will ping them
-            m_clientPingSubset = m_clientSubset;
-            m_clientPingFreq = m_pingFrequency;
          }
 
          StatsReporter.OnSendStatsResult += SendSimStatsPackets;
@@ -1513,8 +1517,9 @@ namespace OpenSim.Region.Framework.Scenes
 
          StartScripts();
 
-         // Begin pinging connected clients
-         StartPingRequests();
+         // Begin pinging connected clients if enabled
+         if (m_pingClients)
+            StartPingRequests();
       }
 
       /// <summary>
