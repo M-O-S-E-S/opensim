@@ -1425,6 +1425,9 @@ namespace OpenSim.Region.Framework.Scenes
             m_clientPingTimer.Close();
          }
 
+         // Scene is closing so remove all references to connected clients
+         m_clientPingDict.Clear();
+
          // Kick all ROOT agents with the message, 'The simulator is going down'
          ForEachScenePresence(delegate(ScenePresence avatar)
          {
