@@ -61,7 +61,7 @@ namespace OpenSim.Framework.Monitoring
         private double m_avgPing = 0.0;
         private bool m_pingCompleted;
 
-        private const string m_defaultServerName = "www.Google.com";
+        private const string m_defaultServerName = "www.google.com";
         private const double m_pingFrequency = 3.0;
 
         private volatile float timeDilation;
@@ -570,13 +570,14 @@ Asset service request failures: {3}" + Environment.NewLine,
         private void StartPingRequests()
         {
             // Create new object to allow for pinging an external server; add the PingCompletedCallback as
-            // one of the methods to be called when the PingCompleted delegate is invoked
+            // one of the methods to be called when the PingCompleted delegate is invoked (the
+            // PingCompleted literally tracks which methods to call when it is called)
             m_externalPingSender = new Ping();
-            m_externalPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
+            m_externalPingSender.PingCompleted += PingCompletedCallback;
 
             // Create timer to continually ping connected clients, within the specified frequency; add the
             // PingExternal method as one of the methods to be called when the Timer's Elapsed delegate is
-            // invoked
+            // invoked (Elapsed tracks the methods to call when it is called)
             m_externalPingTimer = new Timer(m_externalPingFreq * 1000);
             m_externalPingTimer.AutoReset = true;
             m_externalPingTimer.Elapsed += PingExternal;

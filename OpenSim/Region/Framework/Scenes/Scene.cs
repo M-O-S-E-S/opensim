@@ -522,7 +522,7 @@ namespace OpenSim.Region.Framework.Scenes
       /// only 1 client is pinged every 3 seconds (3000 milliseconds).
       /// </summary>
       private const int m_clientSubset = 1;
-      private const double m_pingFrequency = 3000.0;
+      private const double m_pingFrequency = 3.0;
 
       /// <summary>
       /// Used to allow pinging connected clients at a desired frequency. Set the default values
@@ -1544,13 +1544,14 @@ namespace OpenSim.Region.Framework.Scenes
       private void StartPingRequests()
       {
          // Create new object to allow for pinging connected clients; add the PingCompletedCallback
-         // as one of the methods to be called when the PingCompleted delegate is invoked
+         // as one of the methods to be called when the PingCompleted delegate is invoked (the
+         // PingCompleted literally tracks which methods to call when it is called)
          m_clientPingSender = new Ping();
-         m_clientPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
+         m_clientPingSender.PingCompleted += PingCompletedCallback;
 
          // Create timer to continually ping connected clients, within the specified interval; add
          // the PingClient method as one of the methods to be called when the Timer's Elapsed
-         // delegate is invoked
+         // delegate is invoked (Elapsed tracks the methods to call when it is called)
          m_clientPingTimer = new Timer(m_clientPingFreq * 1000);
          m_clientPingTimer.AutoReset = true;
          m_clientPingTimer.Elapsed += PingClient;
