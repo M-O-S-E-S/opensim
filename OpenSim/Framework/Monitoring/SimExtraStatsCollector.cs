@@ -32,6 +32,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Timers;
+using Nini.Config;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework.Monitoring.Interfaces;
@@ -55,10 +56,13 @@ namespace OpenSim.Framework.Monitoring
 
         private Ping m_externalPingSender;
         private Timer m_externalPingTimer;
-        private string m_externalServerName = "www.my.ucf.edu";
-        private double m_externalPingFreq = 3.0;
+        private string m_externalServerName;
+        private double m_externalPingFreq;
         private double m_avgPing = 0.0;
         private bool m_pingCompleted;
+
+        private const string m_defaultServerName = "www.Google.com";
+        private const double m_pingFrequency = 3.0;
 
         private volatile float timeDilation;
         private volatile float simFps;
@@ -182,20 +186,37 @@ namespace OpenSim.Framework.Monitoring
 
         public SimExtraStatsCollector()
         {
-            // Call the following methods callback methods, for client and external pings,
-            // whenever the PingCompleted event is raised
-            m_externalPingSender = new Ping();
-            m_externalPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
+            // Set the default values, related to ping requests, for the external server
+            // name and the frequnecy to ping it, to its constant 
+            m_externalServerName = m_defaultServerName;
+            m_externalPingFreq = m_pingFrequency;
 
-            // Call the PingExternal method, at the specifed time interval, whenever
-            // the PingCompleted event is raised
-            m_externalPingTimer = new Timer(m_externalPingFreq * 1000);
-            m_externalPingTimer.AutoReset = true;
-            m_externalPingTimer.Elapsed += PingExternal;
+            // Begin pinging the external server
+            StartPingRequests();
+        }
 
-            // Start the timer to ping the external server
-            m_pingCompleted = true;
-            m_externalPingTimer.Start();
+        public SimExtraStatsCollector(IConfigSource config)
+        {
+            // Acquire the statistics section of the OpenSim.ini file and check to see if it
+            // exists
+            IConfig statsConfig = config.Configs["Statistics"];
+            if (statsConfig != null)
+            {
+                // Get the name for the external server to ping and the frequency to ping it; use
+                // the default constant values of neither were found in the configuration
+                m_externalServerName = statsConfig.GetString("ExternalServer", m_defaultServerName);
+                m_externalPingFreq = statsConfig.GetDouble("ExternalPingFrequency", m_pingFrequency);
+            }
+            else
+            {
+                // The statistics section was not found in the configuration file so use the
+                // default constant values for the external server name and the ping frequency
+                m_externalServerName = m_defaultServerName;
+                m_externalPingFreq = m_pingFrequency;
+            }
+
+            // Begin pinging the external server
+            StartPingRequests();
         }
 
         ~SimExtraStatsCollector()
@@ -550,6 +571,28 @@ Asset service request failures: {3}" + Environment.NewLine,
             return args;
         }
 
+        private void StartPingRequests()
+        {
+            // Create new object to allow for pinging an external server; add the PingCompletedCallback as
+            // one of the methods to be called when the PingCompleted delegate is invoked
+            m_externalPingSender = new Ping();
+            m_externalPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
+
+            // Create new timer with the specified ping frequency; add the PingExternal method as one of
+            // the methods to be called when the Elapsed delegate is invoked
+
+            // Create timer to continually ping connected clients, within the specified frequency; add the
+            // PingExternal method as one of the methods to be called when the Timer's Elapsed delegate is
+            // invoked
+            m_externalPingTimer = new Timer(m_externalPingFreq * 1000);
+            m_externalPingTimer.AutoReset = true;
+            m_externalPingTimer.Elapsed += PingExternal;
+
+            // Start the timer to ping the external server
+            m_pingCompleted = true;
+            m_externalPingTimer.Start();
+        }
+
         private void PingCompletedCallback(object sender, PingCompletedEventArgs e)
         {
             // Get the ping time if request succeeded, otherwise save a
@@ -568,7 +611,7 @@ Asset service request failures: {3}" + Environment.NewLine,
             // Make sure that there is no pending ping
             if (m_pingCompleted)
             {
-                // Asynchronous send a ping to the designated external server's address
+                // Asynchronously send a ping to the designated external server's address
                 m_externalPingSender.SendAsync(m_externalServerName, null);
 
                 // Indicate that a ping was just sent

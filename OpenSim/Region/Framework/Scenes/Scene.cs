@@ -518,12 +518,20 @@ namespace OpenSim.Region.Framework.Scenes
       private Dictionary<string, bool> m_clientPingDict = new Dictionary<string, bool>();
 
       /// <summary>
-      /// Used to allow pinging connected clients at a desired frequency.
+      /// Constant values related to pinging connected clients. By default,
+      /// only 1 client is pinged every 3 seconds (3000 milliseconds).
+      /// </summary>
+      private const int m_clientSubset = 1;
+      private const double m_pingFrequency = 3000.0;
+
+      /// <summary>
+      /// Used to allow pinging connected clients at a desired frequency. Set the default values
+      /// for the subset of connected clients to ping at the default frequency.
       /// </summary>
       private Ping m_clientPingSender;
       private Timer m_clientPingTimer;
-      private int m_clientPingSubset;
-      private double m_clientPingFreq;
+      private int m_clientPingSubset = m_clientSubset;
+      private double m_clientPingFreq = m_pingFrequency;
 
       #endregion Fields
 
@@ -1154,9 +1162,9 @@ namespace OpenSim.Region.Framework.Scenes
                statisticsConfig.GetInt("NumberOfFrames", 10));
 
             // Get the number of clients that the server will ping and the frequency
-            // that it will ping them; set default values if either value not found
-            m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", 1);
-            m_clientPingFreq = statisticsConfig.GetDouble("ClientPingFrequnecy", 3);
+            // that it will ping them; set default contant values if either value not found
+            m_clientPingSubset = statisticsConfig.GetInt("ClientPingSubset", m_clientSubset);
+            m_clientPingFreq = statisticsConfig.GetDouble("ClientPingFrequnecy", m_pingFrequency);
          }
          else
          {
@@ -1164,10 +1172,10 @@ namespace OpenSim.Region.Framework.Scenes
             // 10 frames stored for the frame time statistics
             StatsReporter = new SimStatsReporter(this);
 
-            // Set the default values for the numer of clients the server will ping and at
+            // Set the default, constant values for the numer of clients the server will ping at
             // what frequency it will ping them
-            m_clientPingSubset = 1;
-            m_clientPingFreq = 3;
+            m_clientPingSubset = m_clientSubset;
+            m_clientPingFreq = m_pingFrequency;
          }
 
          StatsReporter.OnSendStatsResult += SendSimStatsPackets;
@@ -1530,14 +1538,14 @@ namespace OpenSim.Region.Framework.Scenes
 
       private void StartPingRequests()
       {
-         // Create new instance to allow for pinging specified networks
+         // Create new object to allow for pinging connected clients; add the PingCompletedCallback
+         // as one of the methods to be called when the PingCompleted delegate is invoked
          m_clientPingSender = new Ping();
-
-         // Call the following callback method, for client pings,
-         // whenever the PingCompleted event is raised
          m_clientPingSender.PingCompleted += new PingCompletedEventHandler(PingCompletedCallback);
 
-         // Create the timer to continually ping connected clients, within the specified interval
+         // Create timer to continually ping connected clients, within the specified interval; add
+         // the PingClient method as one of the methods to be called when the Timer's Elapsed
+         // delegate is invoked
          m_clientPingTimer = new Timer(m_clientPingFreq * 1000);
          m_clientPingTimer.AutoReset = true;
          m_clientPingTimer.Elapsed += PingClient;
@@ -2132,7 +2140,8 @@ namespace OpenSim.Region.Framework.Scenes
          if (m_clientPingDict.Count == 0)
             return;
 
-         // Generate a random index based on the number of connected clients
+         // Choose a random client to ping for better assurance that the same clients aren't
+         // always pinged; generate a random index to use in the list of conneced clients
          Random rnd = new Random();
          int index = rnd.Next(m_clientPingDict.Count);
 
@@ -2156,7 +2165,7 @@ namespace OpenSim.Region.Framework.Scenes
          // Add the reported ping time to the stats repoter
          StatsReporter.AddClientPingTime(e.Reply.RoundtripTime, m_clientPingSubset);
 
-         // Indicate that the clinet at this IP address is no longer pending a ping request
+         // Indicate that the client at this IP address is no longer pending a ping request
          m_clientPingDict[e.Reply.Address.ToString()] = false;
       }
 
