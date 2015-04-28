@@ -288,11 +288,11 @@ namespace OpenSim.Framework.Monitoring
 
         public void RemoveAgent(string name)
         {
-            // Search for the agent being removed in the list of users currently connected to server
+            // Search for the agent being removed in the list of users currently connected to the server
             foreach (AgentSimData agent in agentList)
             {
                 // Check if the given name mathes the current one in the list
-                if (agent.Name().CompareTo(name) == 0)
+                if (agent.Name.CompareTo(name) == 0)
                 {
                     // Agent found, so remove them from the list and exit
                     agentList.Remove(agent);
@@ -609,8 +609,8 @@ Asset service request failures: {3}" + Environment.NewLine,
             foreach (AgentSimData agent in agentList)
             {
                 // Add the agent statistical data (name, IP, and login time) to the OSDMap
-                args[agent.Name()] = OSD.FromString(
-                    String.Format("{0} | Login: {1}", agent.IPAddress(), agent.Timestamp()));
+                args[agent.Name] = OSD.FromString(
+                    String.Format("{0} | Login: {1}", agent.IPAddress, agent.Timestamp));
             }
 
             // Add the given uptime and OpenSim version to the OSDMap
@@ -712,24 +712,25 @@ Asset service request failures: {3}" + Environment.NewLine,
 
         public AgentSimData(string name, string ipAddress, string loginTimestamp)
         {
+            // Save the given agent data: their name, IP address, and login timestamp
             m_agentName = name;
             m_agentIPAddress = ipAddress;
             m_loginTimestamp = loginTimestamp;
         }
 
-        public string Name()
+        public string Name
         {
-            return m_agentName;
+            get { return m_agentName; }
         }
 
-        public string IPAddress()
+        public string IPAddress
         {
-            return m_agentIPAddress;
+            get { return m_agentIPAddress; }
         }
 
-        public string Timestamp()
+        public string Timestamp
         {
-            return m_loginTimestamp;
+            get { return m_loginTimestamp; }
         }
     }
 }
