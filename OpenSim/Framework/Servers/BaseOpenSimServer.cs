@@ -174,5 +174,19 @@ namespace OpenSim.Framework.Servers
                 return StatsManager.SimExtraStats.XReport((DateTime.Now - m_startuptime).ToString() , m_version);
             }
         }
+
+        public string AgentReport(IOSHttpRequest httpRequest)
+        {
+            // If the given http request contains its own callback function, wrap the response in the value for
+            // the jsonp; otherwise just return the response as is
+            if (httpRequest.Query.ContainsKey("callback"))
+            {
+                return httpRequest.Query["callback"].ToString() + "(" + StatsManager.SimExtraStats.AgentReport((DateTime.Now - m_startuptime).ToString(), m_version) + ");";
+            }
+            else
+            {
+                return StatsManager.SimExtraStats.AgentReport((DateTime.Now - m_startuptime).ToString(), m_version);
+            }
+        }
     }
 }
