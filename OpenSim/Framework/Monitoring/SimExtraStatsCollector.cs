@@ -184,6 +184,11 @@ namespace OpenSim.Framework.Monitoring
         private IDictionary<UUID, PacketQueueStatsCollector> packetQueueStatsCollectors
             = new Dictionary<UUID, PacketQueueStatsCollector>();
 
+        /// <summary>
+        /// List of various statistical data of connected users.
+        /// </summary>
+        private List<AgentSimData> agentList = new List<AgentSimData>();
+
         public SimExtraStatsCollector()
         {
             // Default constructor
@@ -273,6 +278,28 @@ namespace OpenSim.Framework.Monitoring
 //        {
 //            inventoryServiceRetrievalFailures++;
 //        }
+
+        public void AddAgent(string name, string ipAddress, string timestamp)
+        {
+            // Save new agent data to the list of connected users
+            AgentSimData agentSimData = new AgentSimData(name, ipAddress, timestamp);
+            agentList.Add(agentSimData);
+        }
+
+        public void RemoveAgent(string name)
+        {
+            // Search for the agent being removed in the list of users currently connected to server
+            foreach (AgentSimData agent in agentList)
+            {
+                // Check if the given name mathes the current one in the list
+                if (agent.Name().CompareTo(name) == 0)
+                {
+                    // Agent found, so remove them from the list and exit
+                    agentList.Remove(agent);
+                    return;
+                }
+            }
+        }
 
         /// <summary>
         /// Register as a packet queue stats provider
@@ -567,6 +594,34 @@ Asset service request failures: {3}" + Environment.NewLine,
             return args;
         }
 
+        /// <summary>
+        /// Report back collected statistical information, of all connected users, as a json serialization.
+        /// </summary>
+        /// <param name="uptime"></param>
+        /// <param name="version">Current version of OpenSim</param>
+        /// <returns>JSON string of user login data</returns>
+        public string AgentReport(string uptime, string version)
+        {
+            // Create new OSDMap to hold the agent data
+            OSDMap args = new OSDMap(agentList.Count);
+
+            // Go through the list of connected users
+            foreach (AgentSimData agent in agentList)
+            {
+                // Add the agent statistical data (name, IP, and login time) to the OSDMap
+                args[agent.Name()] = OSD.FromString(
+                    String.Format("{0} | Login: {1}", agent.IPAddress(), agent.Timestamp()));
+            }
+
+            // Add the given uptime and OpenSim version to the OSDMap
+            args["Uptime"] = OSD.FromString(uptime);
+            args["Version"] = OSD.FromString(version);
+
+            // Serialize the OSDMap, that was just created, to JSON format and
+            // return it
+            return OSDParser.SerializeJsonString(args);
+        }
+
         private void StartPingRequests()
         {
             // Create new object to allow for pinging an external server; add the PingCompletedCallback as
@@ -645,6 +700,36 @@ Asset service request failures: {3}" + Environment.NewLine,
         {
             OSDMap ret = new OSDMap();
             return ret;
+        }
+    }
+
+
+    public class AgentSimData
+    {
+        private string m_agentName;
+        private string m_agentIPAddress;
+        private string m_loginTimestamp;
+
+        public AgentSimData(string name, string ipAddress, string loginTimestamp)
+        {
+            m_agentName = name;
+            m_agentIPAddress = ipAddress;
+            m_loginTimestamp = loginTimestamp;
+        }
+
+        public string Name()
+        {
+            return m_agentName;
+        }
+
+        public string IPAddress()
+        {
+            return m_agentIPAddress;
+        }
+
+        public string Timestamp()
+        {
+            return m_loginTimestamp;
         }
     }
 }

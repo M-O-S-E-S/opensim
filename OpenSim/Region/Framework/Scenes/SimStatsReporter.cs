@@ -50,8 +50,8 @@ namespace OpenSim.Region.Framework.Scenes
         public const string SlowFramesStatName = "SlowFrames";
 
         public delegate void SendStatResult(SimStats stats);
-
         public delegate void YourStatsAreWrong();
+        public delegate void SendAgentStat(string name, string ipAddress, string timestamp);
 
         public event SendStatResult OnSendStatsResult;
 
@@ -305,7 +305,9 @@ namespace OpenSim.Region.Framework.Scenes
             m_report.Enabled = true;
 
             if (StatsManager.SimExtraStats != null)
+            {
                 OnSendStatsResult += StatsManager.SimExtraStats.ReceiveClassicSimStatsPacket;
+            }
 
             /// At the moment, we'll only report if a frame is over 120% of target, since commonly frames are a bit
             /// longer than ideal (which in itself is a concern).
@@ -902,6 +904,20 @@ namespace OpenSim.Region.Framework.Scenes
                 m_clientPing = m_totalPingTime / (double)m_clientPingCount;;
                 m_clientPingCount = 0;
             }
+        }
+
+        public void AddNewAgent(string name, string ipAddress, string timestamp)
+        {
+            // Report the new agent being added to the additional stats collector
+            if (StatsManager.SimExtraStats != null)
+                StatsManager.SimExtraStats.AddAgent(name, ipAddress, timestamp);
+        }
+
+        public void RemoveAgent(string name)
+        {
+            // Report the agent being removed to the additional stats collector
+            if (StatsManager.SimExtraStats != null)
+                StatsManager.SimExtraStats.RemoveAgent(name);
         }
 
         #endregion

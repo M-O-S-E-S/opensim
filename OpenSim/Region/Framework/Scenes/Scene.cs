@@ -3016,6 +3016,10 @@ namespace OpenSim.Region.Framework.Scenes
 
             // Save the newly logged in client's IP address and state that it is not being pinged yet
             m_clientPingDict.Add(aCircuit.IPAddress, false);
+
+            // Report the newly logged in agent's name, IP address, and time of login to the
+            // Stats Reporter
+            StatsReporter.AddNewAgent(aCircuit.Name, aCircuit.IPAddress, DateTime.Now.ToString());
          }
 
          // User has logged into the scene so update the list of users logging
@@ -3575,6 +3579,9 @@ namespace OpenSim.Region.Framework.Scenes
 
             // Remove reference to the client's IP address
             m_clientPingDict.Remove(acd.IPAddress);
+
+            // Inform the Stats Reporter that the agent is logging out
+            StatsReporter.RemoveAgent(acd.Name);
 
             ScenePresence avatar = GetScenePresence(agentID);
 
