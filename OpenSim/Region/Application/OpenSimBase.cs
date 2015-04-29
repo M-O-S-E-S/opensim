@@ -884,9 +884,9 @@ namespace OpenSim
 
         /// <summary>
         /// Handler to supply the current extended status of this sim to an agent configured URI.
-        /// Sends the statistcal data, about connected agents, in a json serialization.
-        /// If the request contains a key, "callback", the response will be wrapped in the
-        /// jsonp format, which will be used with ajax/javascript.
+        /// Sends the statistcal data about connected agents in a json serialization or
+        /// a jsonp format if the request contains a key "callback" (the latter which
+        /// will be used with ajax/javascript).
         /// </summary>
         public class UXAgentStatusHandler : BaseStreamHandler
         {

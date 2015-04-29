@@ -177,8 +177,8 @@ namespace OpenSim.Framework.Servers
 
         public string AgentReport(IOSHttpRequest httpRequest)
         {
-            // If the given http request contains its own callback function, wrap the string response
-            // in a jsonp format; otherwise just return the response as is
+            // If the given http request contains its own callback function, support it by wrapping the string response
+            // in a jsonp format; otherwise just return the data response as it was received
             if (httpRequest.Query.ContainsKey("callback"))
             {
                 return httpRequest.Query["callback"].ToString() + "(" + StatsManager.SimExtraStats.AgentReport((DateTime.Now - m_startuptime).ToString(), m_version) + ");";
