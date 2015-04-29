@@ -597,7 +597,7 @@ Asset service request failures: {3}" + Environment.NewLine,
         /// <summary>
         /// Report back collected statistical information, of all connected agents, as a json serialization.
         /// </summary>
-        /// <param name="uptime"></param>
+        /// <param name="uptime">Time that server has been running</param>
         /// <param name="version">Current version of OpenSim</param>
         /// <returns>JSON string of agent login data</returns>
         public string AgentReport(string uptime, string version)
