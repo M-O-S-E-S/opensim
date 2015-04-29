@@ -883,8 +883,8 @@ namespace OpenSim
         }
 
         /// <summary>
-        /// Handler to supply the current extended status of this sim to a user configured URI.
-        /// Sends the statistcal data, about connected users, in a json serialization.
+        /// Handler to supply the current extended status of this sim to an agent configured URI.
+        /// Sends the statistcal data, about connected agents, in a json serialization.
         /// If the request contains a key, "callback", the response will be wrapped in the
         /// associated value for jsonp used with ajax/javascript.
         /// </summary>
@@ -902,7 +902,7 @@ namespace OpenSim
             protected override byte[] ProcessRequest(string path, Stream request,
                 IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
             {
-                // Send the http request to get the report on the connected users and
+                // Send the http request to get the report on the connected agents and
                 // return it as a sequence of bytes
                 return Util.UTF8.GetBytes(m_opensim.AgentReport(httpRequest));
             }

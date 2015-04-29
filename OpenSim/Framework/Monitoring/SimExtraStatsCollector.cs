@@ -185,7 +185,7 @@ namespace OpenSim.Framework.Monitoring
             = new Dictionary<UUID, PacketQueueStatsCollector>();
 
         /// <summary>
-        /// List of various statistical data of connected users.
+        /// List of various statistical data of connected agents.
         /// </summary>
         private List<AgentSimData> agentList = new List<AgentSimData>();
 
@@ -281,14 +281,14 @@ namespace OpenSim.Framework.Monitoring
 
         public void AddAgent(string name, string ipAddress, string timestamp)
         {
-            // Save new agent data to the list of connected users
+            // Save new agent data to the list of connected agents
             AgentSimData agentSimData = new AgentSimData(name, ipAddress, timestamp);
             agentList.Add(agentSimData);
         }
 
         public void RemoveAgent(string name)
         {
-            // Search for the agent being removed in the list of users currently connected to the server
+            // Search for the agent being removed in the list of agents currently connected to the server
             foreach (AgentSimData agent in agentList)
             {
                 // Check if the given name matches the current one in the list
@@ -595,17 +595,17 @@ Asset service request failures: {3}" + Environment.NewLine,
         }
 
         /// <summary>
-        /// Report back collected statistical information, of all connected users, as a json serialization.
+        /// Report back collected statistical information, of all connected agents, as a json serialization.
         /// </summary>
         /// <param name="uptime"></param>
         /// <param name="version">Current version of OpenSim</param>
-        /// <returns>JSON string of user login data</returns>
+        /// <returns>JSON string of agent login data</returns>
         public string AgentReport(string uptime, string version)
         {
             // Create new OSDMap to hold the agent data
             OSDMap args = new OSDMap(agentList.Count);
 
-            // Go through the list of connected users
+            // Go through the list of connected agents
             foreach (AgentSimData agent in agentList)
             {
                 // Add the agent statistical data (name, IP, and login time) to the OSDMap
