@@ -908,14 +908,16 @@ namespace OpenSim.Region.Framework.Scenes
 
         public void AddNewAgent(string name, string ipAddress, string timestamp)
         {
-            // Report the new agent being added to the additional stats collector
+            // Report the new agent being added to the additional stats collector,
+            // if the extra stats collector exsists
             if (StatsManager.SimExtraStats != null)
                 StatsManager.SimExtraStats.AddAgent(name, ipAddress, timestamp);
         }
 
         public void RemoveAgent(string name)
         {
-            // Report the agent being removed to the additional stats collector
+            // Report the agent being removed to the additional stats collector,
+            // if the extra stats collector exists
             if (StatsManager.SimExtraStats != null)
                 StatsManager.SimExtraStats.RemoveAgent(name);
         }
