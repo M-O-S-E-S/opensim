@@ -884,7 +884,7 @@ namespace OpenSim
 
         /// <summary>
         /// Handler to supply the current extended status of this sim to a user configured URI.
-        /// Sends the statistcal data, about connected connected users, in a json serialization.
+        /// Sends the statistcal data, about connected users, in a json serialization.
         /// If the request contains a key, "callback", the response will be wrapped in the
         /// associated value for jsonp used with ajax/javascript.
         /// </summary>

@@ -291,7 +291,7 @@ namespace OpenSim.Framework.Monitoring
             // Search for the agent being removed in the list of users currently connected to the server
             foreach (AgentSimData agent in agentList)
             {
-                // Check if the given name mathes the current one in the list
+                // Check if the given name matches the current one in the list
                 if (agent.Name.CompareTo(name) == 0)
                 {
                     // Agent found, so remove them from the list and exit
