@@ -90,6 +90,7 @@ namespace OpenSim
         
         public string userStatsURI = String.Empty;
         public string managedStatsURI = String.Empty;
+        public string agentStatsURI = String.Empty;
 
         protected bool m_autoCreateClientStack = true;
 
@@ -226,9 +227,10 @@ namespace OpenSim
                 string pidFile = startupConfig.GetString("PIDFile", String.Empty);
                 if (pidFile != String.Empty)
                     CreatePIDFile(pidFile);
-                
+
                 userStatsURI = startupConfig.GetString("Stats_URI", String.Empty);
                 managedStatsURI = startupConfig.GetString("ManagedStatsRemoteFetchURI", String.Empty);
+                agentStatsURI = startupConfig.GetString("Agent_Stats_URI", String.Empty);
             }
 
             // Load the simulation data service
@@ -876,6 +878,38 @@ namespace OpenSim
 
             public override string ContentType
             {
+                get { return "text/plain"; }
+            }
+        }
+
+        /// <summary>
+        /// Handler to supply the current extended status of this sim to an agent configured URI.
+        /// Sends the statistcal data about connected agents in a json serialization or
+        /// a jsonp format if the request contains a key "callback" (the latter which
+        /// will be used with ajax/javascript).
+        /// </summary>
+        public class UXAgentStatusHandler : BaseStreamHandler
+        {
+            OpenSimBase m_opensim;
+
+            public UXAgentStatusHandler(OpenSimBase sim)
+                : base("GET", "/" + sim.agentStatsURI, "UXAgentStatus", "Agent UXStatus")
+            {
+                // Save reference to OpenSim region server interface
+                m_opensim = sim;
+            }
+
+            protected override byte[] ProcessRequest(string path, Stream request,
+                IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
+            {
+                // Send the http request to get the report on the connected agents and
+                // return it as a sequence of bytes
+                return Util.UTF8.GetBytes(m_opensim.AgentReport(httpRequest));
+            }
+
+            public override string ContentType
+            {
+                // Return the text content type
                 get { return "text/plain"; }
             }
         }

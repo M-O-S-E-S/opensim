@@ -27,8 +27,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text;
+using System.Timers;
+using Nini.Config;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework.Monitoring.Interfaces;
@@ -49,6 +53,16 @@ namespace OpenSim.Framework.Monitoring
 
 //        private long assetServiceRequestFailures;
 //        private long inventoryServiceRetrievalFailures;
+
+        private Ping m_externalPingSender;
+        private Timer m_externalPingTimer;
+        private string m_externalServerName;
+        private double m_externalPingFreq;
+        private double m_avgPing = 0.0;
+        private bool m_pingCompleted;
+
+        private const string m_defaultServerName = "www.google.com";
+        private const double m_pingFrequency = 3.0;
 
         private volatile float timeDilation;
         private volatile float simFps;
@@ -71,6 +85,16 @@ namespace OpenSim.Framework.Monitoring
         private volatile float pendingUploads;
         private volatile float activeScripts;
         private volatile float scriptLinesPerSecond;
+        private volatile float m_frameDilation;
+        private volatile float m_usersLoggingIn;
+        private volatile float m_totalGeoPrims;
+        private volatile float m_totalMeshes;
+        private volatile float m_inUseThreads;
+        private volatile float m_inByteRate;
+        private volatile float m_outByteRate;
+        private volatile float m_errorPacketRate;
+        private volatile float m_queueSize;
+        private volatile float m_clientPing;
 
 //        /// <summary>
 //        /// These statistics are being collected by push rather than pull.  Pull would be simpler, but I had the
@@ -115,7 +139,7 @@ namespace OpenSim.Framework.Monitoring
         public float PendingUploads { get { return pendingUploads; } }
         public float ActiveScripts { get { return activeScripts; } }
         public float ScriptLinesPerSecond { get { return scriptLinesPerSecond; } }
-        
+
 //        /// <summary>
 //        /// This is the time it took for the last asset request made in response to a cache miss.
 //        /// </summary>
@@ -159,6 +183,48 @@ namespace OpenSim.Framework.Monitoring
         /// </summary>
         private IDictionary<UUID, PacketQueueStatsCollector> packetQueueStatsCollectors
             = new Dictionary<UUID, PacketQueueStatsCollector>();
+
+        /// <summary>
+        /// List of various statistical data of connected agents.
+        /// </summary>
+        private List<AgentSimData> agentList = new List<AgentSimData>();
+
+        public SimExtraStatsCollector()
+        {
+            // Default constructor
+        }
+
+        public SimExtraStatsCollector(IConfigSource config)
+        {
+            // Acquire the statistics section of the OpenSim.ini file and check to see if it
+            // exists
+            IConfig statsConfig = config.Configs["Statistics"];
+            if (statsConfig != null)
+            {
+                // Check if the configuration enables pinging the external server; disabled
+                // by default
+                bool pingServer = statsConfig.GetBoolean("PingExternalServerEnabled", false);
+
+                // Get the rest of the values, for ping requests, if enabled
+                if (pingServer)
+                {
+                    // Get the name for the external server to ping and the frequency to ping it; use
+                    // the default constant values of neither were found in the configuration
+                    m_externalServerName = statsConfig.GetString("ExternalServer", m_defaultServerName);
+                    m_externalPingFreq = statsConfig.GetDouble("ExternalPingFrequency", m_pingFrequency);
+
+                    // Begin pinging the external server
+                    StartPingRequests();
+                }
+            }
+        }
+
+        ~SimExtraStatsCollector()
+        {
+            // Stop the timer to ping the external server
+            if (m_externalPingTimer != null)
+               m_externalPingTimer.Stop();
+        }
 
 //        public void AddAsset(AssetBase asset)
 //        {
@@ -213,6 +279,28 @@ namespace OpenSim.Framework.Monitoring
 //            inventoryServiceRetrievalFailures++;
 //        }
 
+        public void AddAgent(string name, string ipAddress, string timestamp)
+        {
+            // Save new agent data to the list of connected agents
+            AgentSimData agentSimData = new AgentSimData(name, ipAddress, timestamp);
+            agentList.Add(agentSimData);
+        }
+
+        public void RemoveAgent(string name)
+        {
+            // Search for the agent being removed in the list of agents currently connected to the server
+            foreach (AgentSimData agent in agentList)
+            {
+                // Check if the given name matches the current one in the list
+                if (agent.Name.CompareTo(name) == 0)
+                {
+                    // Agent found, so remove them from the list and exit
+                    agentList.Remove(agent);
+                    return;
+                }
+            }
+        }
+
         /// <summary>
         /// Register as a packet queue stats provider
         /// </summary>
@@ -249,6 +337,10 @@ namespace OpenSim.Framework.Monitoring
         {
             // FIXME: SimStats shouldn't allow an arbitrary stat packing order (which is inherited from the original
             // SimStatsPacket that was being used).
+
+            // For an unknown reason the original designers decided not to
+            // include the spare MS statistic inside of this class, this is
+            // located inside the StatsBlock at location 21, thus it is skipped
             timeDilation            = stats.StatsBlock[0].StatValue;
             simFps                  = stats.StatsBlock[1].StatValue;
             physicsFps              = stats.StatsBlock[2].StatValue;
@@ -270,6 +362,16 @@ namespace OpenSim.Framework.Monitoring
             pendingUploads          = stats.StatsBlock[18].StatValue;
             activeScripts           = stats.StatsBlock[19].StatValue;
             scriptLinesPerSecond    = stats.StatsBlock[20].StatValue;
+            m_frameDilation         = stats.StatsBlock[22].StatValue;
+            m_usersLoggingIn        = stats.StatsBlock[23].StatValue;
+            m_totalGeoPrims         = stats.StatsBlock[24].StatValue;
+            m_totalMeshes           = stats.StatsBlock[25].StatValue;
+            m_inUseThreads          = stats.StatsBlock[26].StatValue;
+            m_inByteRate            = stats.StatsBlock[27].StatValue;
+            m_outByteRate           = stats.StatsBlock[28].StatValue;
+            m_errorPacketRate       = stats.StatsBlock[29].StatValue;
+            m_queueSize             = stats.StatsBlock[30].StatValue;
+            m_clientPing            = stats.StatsBlock[31].StatValue;
         }
 
         /// <summary>
@@ -407,6 +509,23 @@ Asset service request failures: {3}" + Environment.NewLine,
         /// <returns></returns>
         public override OSDMap OReport(string uptime, string version)
         {
+            // Get the amount of physical memory, allocated with the instance of this program, in kilobytes;
+            // the working set is the set of memory pages currently visible to this program in physical RAM
+            // memory and includes both shared (e.g. system libraries) and private data
+            double memUsage = Process.GetCurrentProcess().WorkingSet64 / 1024.0;
+
+            // Get the number of threads from the system that are currently
+            // running
+            int numberThreadsRunning = 0;
+            foreach (ProcessThread currentThread in
+                Process.GetCurrentProcess().Threads)
+            {
+                if (currentThread.ThreadState == ThreadState.Running)
+                {
+                    numberThreadsRunning++;
+                }
+            }
+
             OSDMap args = new OSDMap(30);
 //            args["AssetsInCache"] = OSD.FromString (String.Format ("{0:0.##}", AssetsInCache));
 //            args["TimeAfterCacheMiss"] = OSD.FromString (String.Format ("{0:0.##}",
@@ -435,7 +554,10 @@ Asset service request failures: {3}" + Environment.NewLine,
             args["PendUl"] = OSD.FromString (String.Format ("{0:0.##}", pendingUploads));
             args["UnackB"] = OSD.FromString (String.Format ("{0:0.##}", unackedBytes));
             args["TotlFt"] = OSD.FromString (String.Format ("{0:0.##}", totalFrameTime));
-            args["NetFt"] = OSD.FromString (String.Format ("{0:0.##}", netFrameTime));
+            args["NetEvtTime"] = OSD.FromString (String.Format ("{0:0.##}", 
+                netFrameTime));
+            args["NetQSize"] = OSD.FromString(String.Format("{0:0.##}", 
+                m_queueSize));
             args["PhysFt"] = OSD.FromString (String.Format ("{0:0.##}", physicsFrameTime));
             args["OthrFt"] = OSD.FromString (String.Format ("{0:0.##}", otherFrameTime));
             args["AgntFt"] = OSD.FromString (String.Format ("{0:0.##}", agentFrameTime));
@@ -443,8 +565,107 @@ Asset service request failures: {3}" + Environment.NewLine,
             args["Memory"] = OSD.FromString (base.XReport (uptime, version));
             args["Uptime"] = OSD.FromString (uptime);
             args["Version"] = OSD.FromString (version);
+
+            args["FrameDilatn"] = OSD.FromString(String.Format("{0:0.##}", m_frameDilation));
+            args["Logging in Users"] = OSD.FromString(String.Format("{0:0.##}",
+                m_usersLoggingIn));
+            args["GeoPrims"] = OSD.FromString(String.Format("{0:0.##}",
+                m_totalGeoPrims));
+            args["Mesh Objects"] = OSD.FromString(String.Format("{0:0.##}",
+                m_totalMeshes));
+            args["XEngine Thread Count"] = OSD.FromString(String.Format("{0:0.##}",
+                m_inUseThreads));
+            args["Util Thread Count"] = OSD.FromString(String.Format("{0:0.##}",
+                Util.GetSmartThreadPoolInfo().InUseThreads));
+            args["System Thread Count"] = OSD.FromString(String.Format(
+                "{0:0.##}", numberThreadsRunning));
+            args["ProcMem"] = OSD.FromString(String.Format("{0:#,###,###.##}",
+                memUsage));
+
+            args["UDPIn"] = OSD.FromString(String.Format("{0:0.##}",
+                m_inByteRate));
+            args["UDPOut"] = OSD.FromString(String.Format("{0:0.##}",
+                m_outByteRate));
+            args["UDPInError"] = OSD.FromString(String.Format("{0:0.##}",
+                m_errorPacketRate));
+            args["ClientPing"] = OSD.FromString(String.Format("{0:0.##}", m_clientPing));
+            args["AvgPing"] = OSD.FromString(String.Format("{0:0.######}", m_avgPing));
             
             return args;
+        }
+
+        /// <summary>
+        /// Report back collected statistical information, of all connected agents, as a json serialization.
+        /// </summary>
+        /// <param name="uptime">Time that server has been running</param>
+        /// <param name="version">Current version of OpenSim</param>
+        /// <returns>JSON string of agent login data</returns>
+        public string AgentReport(string uptime, string version)
+        {
+            // Create new OSDMap to hold the agent data
+            OSDMap args = new OSDMap(agentList.Count);
+
+            // Go through the list of connected agents
+            foreach (AgentSimData agent in agentList)
+            {
+                // Add the agent statistical data (name, IP, and login time) to the OSDMap
+                args[agent.Name] = OSD.FromString(
+                    String.Format("{0} | Login: {1}", agent.IPAddress, agent.Timestamp));
+            }
+
+            // Add the given uptime and OpenSim version to the OSDMap
+            args["Uptime"] = OSD.FromString(uptime);
+            args["Version"] = OSD.FromString(version);
+
+            // Serialize the OSDMap, that was just created, to JSON format and
+            // return it
+            return OSDParser.SerializeJsonString(args);
+        }
+
+        private void StartPingRequests()
+        {
+            // Create new object to allow for pinging an external server; add the PingCompletedCallback as
+            // one of the methods to be called when the PingCompleted delegate is invoked (the
+            // PingCompleted literally tracks which methods to call when it is called)
+            m_externalPingSender = new Ping();
+            m_externalPingSender.PingCompleted += PingCompletedCallback;
+
+            // Create timer to continually ping connected clients, within the specified frequency; add the
+            // PingExternal method as one of the methods to be called when the Timer's Elapsed delegate is
+            // invoked (Elapsed tracks the methods to call when it is called)
+            m_externalPingTimer = new Timer(m_externalPingFreq * 1000);
+            m_externalPingTimer.AutoReset = true;
+            m_externalPingTimer.Elapsed += PingExternal;
+
+            // Start the timer to ping the external server
+            m_pingCompleted = true;
+            m_externalPingTimer.Start();
+        }
+
+        private void PingCompletedCallback(object sender, PingCompletedEventArgs e)
+        {
+            // Get the ping time if request succeeded, otherwise save a
+            // value of -1 to indicate failure
+            if (e.Reply.Status == IPStatus.Success)
+                m_avgPing = e.Reply.RoundtripTime;
+            else
+                m_avgPing = -1;
+
+            // Indicate that ping to external server has completed
+            m_pingCompleted = true;
+        }
+
+        private void PingExternal(object sender, ElapsedEventArgs e)
+        {
+            // Make sure that there is no pending ping
+            if (m_pingCompleted)
+            {
+                // Asynchronously send a ping to the designated external server's address
+                m_externalPingSender.SendAsync(m_externalServerName, null);
+
+                // Indicate that a ping was just sent
+                m_pingCompleted = false;
+            }
         }
     }
 
@@ -479,6 +700,37 @@ Asset service request failures: {3}" + Environment.NewLine,
         {
             OSDMap ret = new OSDMap();
             return ret;
+        }
+    }
+
+
+    public class AgentSimData
+    {
+        private string m_agentName;
+        private string m_agentIPAddress;
+        private string m_loginTimestamp;
+
+        public AgentSimData(string name, string ipAddress, string loginTimestamp)
+        {
+            // Save the given agent data: their name, IP address, and login timestamp
+            m_agentName = name;
+            m_agentIPAddress = ipAddress;
+            m_loginTimestamp = loginTimestamp;
+        }
+
+        public string Name
+        {
+            get { return m_agentName; }
+        }
+
+        public string IPAddress
+        {
+            get { return m_agentIPAddress; }
+        }
+
+        public string Timestamp
+        {
+            get { return m_loginTimestamp; }
         }
     }
 }

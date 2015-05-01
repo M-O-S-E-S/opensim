@@ -1156,6 +1156,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
             // Stats tracking
             Interlocked.Increment(ref udpClient.PacketsSent);
+            Interlocked.Add(ref udpClient.m_bytesSent, buffer.DataLength);
 
             // We're not going to worry about interlock yet since its not currently critical that this total count
             // is 100% correct
@@ -1175,6 +1176,9 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         private void RecordMalformedInboundPacket(IPEndPoint endPoint)
         {
+            LLUDPClient udpClient = null;
+            IClientAPI client;
+        
 //                if (m_malformedCount < 100)
 //                    m_log.DebugFormat("[LLUDPSERVER]: Dropped malformed packet: " + e.ToString());
 
@@ -1184,6 +1188,27 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 m_log.WarnFormat(
                     "[LLUDPSERVER]: Received {0} malformed packets so far, probable network attack.  Last was from {1}", 
                     IncomingMalformedPacketCount, endPoint);
+                    
+            // Access the dictionary that maps IP addresses to the client API 
+            // through the scene, then make sure that the client is an 
+            // LLClientView otherwise a UDP client connection is not guaranteed
+            if (Scene.TryGetClient(endPoint, out client) && 
+                (client is LLClientView))
+            {
+                // Get the current UDP client that is recording the statistics 
+                // to send to the SimStatsReporter
+                udpClient = ((LLClientView)client).UDPClient;
+
+                // Make sure the client has been created and initialized and has 
+                // not been shutdown
+                if (!udpClient.IsConnected)
+                {
+                    // Record that a packet was not readable for statistical 
+                    // analysis, this will determine the rate in packets dropped
+                    // per second
+                    Interlocked.Increment(ref udpClient.m_packetsUnreadable);
+                }
+            }
         }
 
         public override void PacketReceived(UDPPacketBuffer buffer)
@@ -1319,6 +1344,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
             // Stats tracking
             Interlocked.Increment(ref udpClient.PacketsReceived);
+            Interlocked.Add(ref udpClient.m_bytesReceived, buffer.DataLength);
 
             int now = Environment.TickCount & Int32.MaxValue;
             udpClient.TickLastPacketReceived = now;
@@ -1870,11 +1896,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         private void IncomingPacketHandler()
         {
             Thread.CurrentThread.Priority = ThreadPriority.Highest;
-
+    
+            // Create a timer to track how long it takes to process a packet    
+            Stopwatch packetStopwatch = new Stopwatch();
+                 
             // Set this culture for the thread that incoming packets are received
             // on to en-US to avoid number parsing issues
             Culture.SetCurrentCulture();
-
+            
             while (IsRunningInbound)
             {
                 try
@@ -1893,10 +1922,24 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
                     if (packetInbox.Dequeue(100, ref incomingPacket))
                     {
+                        // Reset the timer to zero and begin counting the time
+                        // it takes for the current packet to be processed
+                        packetStopwatch.Restart();
+                    
                         ProcessInPacket(incomingPacket);//, incomingPacket); Util.FireAndForget(ProcessInPacket, incomingPacket);
 
                         if (UsePools)
                             m_incomingPacketPool.ReturnObject(incomingPacket);
+                            
+                        // Stop the timer to get an accurate time that the 
+                        // incoming packet took to process
+                        packetStopwatch.Stop();
+                        
+                        // Report the time and queue size to the 
+                        // SimStatsReporter
+                        Scene.StatsReporter.AddPacketProcessStats(
+                            packetStopwatch.Elapsed.TotalMilliseconds, 
+                            packetInbox.Count);
                     }
                 }
                 catch (Exception ex)
