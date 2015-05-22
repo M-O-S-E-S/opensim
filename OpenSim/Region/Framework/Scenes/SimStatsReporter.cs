@@ -899,10 +899,12 @@ namespace OpenSim.Region.Framework.Scenes
             m_clientPingCount++;
             if (m_clientPingCount >= subset)
             {
-                // Calculate the ping average between the server and its connected clients, then
-                // reset the client count
-                m_clientPing = m_totalPingTime / (double)m_clientPingCount;;
+                // Calculate the ping average between the server and its connected clients
+                m_clientPing = m_totalPingTime / (double)m_clientPingCount;
+
+                // Reset the client count and the total ping time
                 m_clientPingCount = 0;
+                m_totalPingTime = 0;
             }
         }
 
