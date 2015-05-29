@@ -1739,6 +1739,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     Thread.Sleep(200);
                 }
 
+                // User has logged into the scene so update the list of users 
+                // logging in
+                // NOTE: The user is no longer considered logging in by opensim 
+                // because the user either logged in successfully or was locked
+                // inside of Scene::AddNewAgent, using this an assumption is
+                // made that the client is now done logging into the system
+                Scene.StatsReporter.UpdateUsersLoggingIn(false);
+
                 if (client == null)
                 {
                     m_log.DebugFormat(

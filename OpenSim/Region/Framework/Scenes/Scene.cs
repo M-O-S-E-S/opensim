@@ -3110,6 +3110,11 @@ namespace OpenSim.Region.Framework.Scenes
             // each other.  In practice, this does not currently occur in the code.
             AgentCircuitData aCircuit = m_authenticateHandler.GetAgentCircuitData(client.CircuitCode);
 
+            // Report the newly logged in agent's name, IP address, and time of
+            // login to the Stats Reporter
+            StatsReporter.AddNewAgent(aCircuit.Name, aCircuit.IPAddress, 
+                DateTime.Now.ToString());
+
             // We lock here on AgentCircuitData to prevent a race condition between the thread adding a new connection
             // and a simultaneous one that removes it (as can happen if the client is closed at a particular point
             // whilst connecting).
@@ -3201,10 +3206,6 @@ namespace OpenSim.Region.Framework.Scenes
                 // Stats Reporter
                 StatsReporter.AddNewAgent(aCircuit.Name, aCircuit.IPAddress, DateTime.Now.ToString());
             }
-
-            // User has logged into the scene so update the list of users logging
-            // in
-            StatsReporter.UpdateUsersLoggingIn(false);
 
             m_LastLogin = Util.EnvironmentTickCount();
 
