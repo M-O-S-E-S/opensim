@@ -67,6 +67,19 @@ namespace OpenSim.Region.Framework.Scenes
         
         public delegate void SynchronizeSceneHandler(Scene scene);
 
+        #region Structs
+
+        // Used in the m_clientPingDict to keep track of whether a specific ip
+        // address is being pinged and how many users are connected to the
+        // region with the same ip address
+        private struct IPAddressState
+        {
+            public int numberOfUsers;
+            public bool isWaiting;
+        }
+
+        #endregion
+
         #region Fields
 
         public bool EmergencyMonitoring = false;
@@ -523,9 +536,11 @@ namespace OpenSim.Region.Framework.Scenes
         private bool m_generateMaptiles;
 
         /// <summary>
-        /// Dictionary of connected clients' IP addresses and their current ping status
+        /// Dictionary of connected clients' IP addresses and their current ping 
+        /// status
         /// </summary>
-        private Dictionary<string, bool> m_clientPingDict = new Dictionary<string, bool>();
+        private Dictionary<string, IPAddressState> m_clientPingDict = new 
+            Dictionary<string, IPAddressState>();
 
         /// <summary>
         /// Constant values related to pinging connected clients. By default,
@@ -2268,9 +2283,16 @@ namespace OpenSim.Region.Framework.Scenes
 
         private void PingClient(object sender, ElapsedEventArgs e)
         {
+            IPAddressState curStatus;
+
             // Makes sure that there are clients already connected
             if (m_clientPingDict.Count == 0)
             {
+                // There are currently no clients connected to the server,
+                // which means that the client ping is unavailable, so set the
+                // client ping to zero
+                StatsReporter.AddClientPingTime(0.0f, m_clientPingSubset);
+
                 return;
             }
 
@@ -2286,22 +2308,49 @@ namespace OpenSim.Region.Framework.Scenes
             string ipAddress = ipList[index];
 
             // Make sure that the selected client isn't already pending a ping request
-            if (m_clientPingDict[ipAddress] == false)
+            if (m_clientPingDict[ipAddress].isWaiting == false)
             {
                 // Asynchronously send a ping to the client and state that the request,
                 // for this client, was sent
                 m_clientPingSender.SendAsync(ipAddress, null);
-                m_clientPingDict[ipAddress] = true;
+                
+                // Check that the ip address exists inside of the list
+                if (m_clientPingDict.TryGetValue(ipAddress, out curStatus))
+                {
+                    // Update the status to waiting on the client ping to be
+                    // received 
+                    curStatus.isWaiting = true;
+                    
+                    // Remove the old status from the list
+                    m_clientPingDict.Remove(ipAddress);
+
+                    // Add the updated status to the list
+                    m_clientPingDict.Add(ipAddress, curStatus);
+                }
             }
         }
 
         private void PingCompletedCallback(object sender, PingCompletedEventArgs e)
         {
+            IPAddressState curStatus;
+
             // Add the reported ping time to the stats repoter
             StatsReporter.AddClientPingTime(e.Reply.RoundtripTime, m_clientPingSubset);
 
-            // Indicate that the client at this IP address is no longer pending a ping request
-            m_clientPingDict[e.Reply.Address.ToString()] = false;
+            // Does the ip address still exist in the list
+            if (m_clientPingDict.TryGetValue(e.Reply.Address.ToString(), 
+                out curStatus))
+            {
+                // Change the status of the ip address as the ping has
+                // completed succesfully
+                curStatus.isWaiting = false;
+
+                // Remove the old status from the list
+                m_clientPingDict.Remove(e.Reply.Address.ToString());
+
+                // Add the updated status to the list
+                m_clientPingDict.Add(e.Reply.Address.ToString(), curStatus);
+            }
         }
 
         #endregion
@@ -3099,6 +3148,7 @@ namespace OpenSim.Region.Framework.Scenes
         {
             ScenePresence sp;
             bool vialogin;
+            IPAddressState curState;
             bool reallyNew = true;
 
             // Update the number of users attempting to login
@@ -3114,6 +3164,31 @@ namespace OpenSim.Region.Framework.Scenes
             // login to the Stats Reporter
             StatsReporter.AddNewAgent(aCircuit.Name, aCircuit.IPAddress, 
                 DateTime.Now.ToString());
+
+            // Either acquire the current state of the ip address or determine
+            // that the state needs to be created
+            if (m_clientPingDict.TryGetValue(aCircuit.IPAddress, out curState))
+            {
+                // Update the state of the ip address to include the new user
+                // that has logged in
+                curState.numberOfUsers++;
+
+                // Remove the current state of the ip address from the list
+                m_clientPingDict.Remove(aCircuit.IPAddress);
+
+                // Now add the updated state to the list
+                m_clientPingDict.Add(aCircuit.IPAddress, curState);
+            }
+            else
+            {
+                // The ip address is not being pinged and there is only 1 user
+                // logged in from this ip address
+                curState.isWaiting = false;
+                curState.numberOfUsers = 1;
+
+                // Save the newly logged in client's IP address and state
+                m_clientPingDict.Add(aCircuit.IPAddress, curState);
+            }
 
             // We lock here on AgentCircuitData to prevent a race condition between the thread adding a new connection
             // and a simultaneous one that removes it (as can happen if the client is closed at a particular point
@@ -3198,13 +3273,6 @@ namespace OpenSim.Region.Framework.Scenes
                 {
                     EventManager.TriggerOnClientLogin(client);
                 }
-
-                // Save the newly logged in client's IP address and state that it is not being pinged yet
-                m_clientPingDict.Add(aCircuit.IPAddress, false);
-
-                // Report the newly logged in agent's name, IP address, and time of login to the 
-                // Stats Reporter
-                StatsReporter.AddNewAgent(aCircuit.Name, aCircuit.IPAddress, DateTime.Now.ToString());
             }
 
             m_LastLogin = Util.EnvironmentTickCount();
@@ -3759,6 +3827,8 @@ namespace OpenSim.Region.Framework.Scenes
         /// </param>
         public void RemoveClient(UUID agentID, bool closeChildAgents)
         {
+            IPAddressState curState;
+
             AgentCircuitData acd = m_authenticateHandler.GetAgentCircuitData(agentID);
 
             // Shouldn't be necessary since RemoveClient() is currently only called by IClientAPI.Close() which 
@@ -3773,16 +3843,33 @@ namespace OpenSim.Region.Framework.Scenes
                 return;
             }
 
+            // Check that the current ip address exists in the list
+            if (m_clientPingDict.TryGetValue(acd.IPAddress, out curState))
+            {
+                // Remove a user from the ip address as one has logged out
+                curState.numberOfUsers--;
+    
+                // Remove the ip address from the list
+                m_clientPingDict.Remove(acd.IPAddress);
+
+                // Determine if there are still users logged in from the same
+                // ip address
+                if (curState.numberOfUsers > 0)
+                {
+                    // There are other users from the same ip address so add
+                    // the ip address back into the list with it's updated
+                    // state
+                    m_clientPingDict.Add(acd.IPAddress, curState);
+                }
+            }
+
+            // Inform the Stats Reporter that the agent is logging out
+            StatsReporter.RemoveAgent(acd.Name);
+
             // TODO: Can we now remove this lock?
             lock (acd)
             {
                 bool isChildAgent = false;
-
-                // Remove reference to the client's IP address
-                m_clientPingDict.Remove(acd.IPAddress);
-
-                // Inform the Stats Reporter that the agent is logging out
-                StatsReporter.RemoveAgent(acd.Name);
 
                 ScenePresence avatar = GetScenePresence(agentID);
 
