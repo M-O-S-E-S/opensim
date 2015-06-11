@@ -64,6 +64,7 @@ namespace OpenSim.Region.Framework.Scenes
         private const long DEFAULT_MAX_TIME_FOR_PERSISTENCE = 600L;
 
         public const int m_defaultNumberFramesStored = 10;
+        public const int m_defaultStatsUpdateRate = 3000;
         
         public delegate void SynchronizeSceneHandler(Scene scene);
 
@@ -1225,6 +1226,11 @@ namespace OpenSim.Region.Framework.Scenes
                 StatsReporter = new SimStatsReporter(this,
                     statisticsConfig.GetInt("NumberOfFrames", 
                     m_defaultNumberFramesStored));
+
+                // Update the amount of time that the stats reporter will wait
+                // before it calculates new values for the statistics
+                StatsReporter.SetUpdateMS(statisticsConfig.GetInt(
+                    "StatsUpdateEveryMS", m_defaultStatsUpdateRate));
 
                 // Check if the configuration enables pinging the clients; disabled by default
                 m_pingClients = statisticsConfig.GetBoolean("PingClientEnabled", false);
@@ -3142,42 +3148,27 @@ namespace OpenSim.Region.Framework.Scenes
 
         #endregion
 
-        #region Add/Remove Avatar Methods
-
-        public override ISceneAgent AddNewAgent(IClientAPI client, PresenceType type)
+        public void AddAgentStatsData(String name, String ipAddress)
         {
-            ScenePresence sp;
-            bool vialogin;
             IPAddressState curState;
-            bool reallyNew = true;
-
-            // Update the number of users attempting to login
-            StatsReporter.UpdateUsersLoggingIn(true);
-
-            // Validation occurs in LLUDPServer
-            //
-            // XXX: A race condition exists here where two simultaneous calls to AddNewAgent can interfere with
-            // each other.  In practice, this does not currently occur in the code.
-            AgentCircuitData aCircuit = m_authenticateHandler.GetAgentCircuitData(client.CircuitCode);
-
+            
             // Report the newly logged in agent's name, IP address, and time of
             // login to the Stats Reporter
-            StatsReporter.AddNewAgent(aCircuit.Name, aCircuit.IPAddress, 
-                DateTime.Now.ToString());
+            StatsReporter.AddNewAgent(name, ipAddress, DateTime.Now.ToString());
 
             // Either acquire the current state of the ip address or determine
             // that the state needs to be created
-            if (m_clientPingDict.TryGetValue(aCircuit.IPAddress, out curState))
+            if (m_clientPingDict.TryGetValue(ipAddress, out curState))
             {
                 // Update the state of the ip address to include the new user
                 // that has logged in
                 curState.numberOfUsers++;
 
                 // Remove the current state of the ip address from the list
-                m_clientPingDict.Remove(aCircuit.IPAddress);
+                m_clientPingDict.Remove(ipAddress);
 
                 // Now add the updated state to the list
-                m_clientPingDict.Add(aCircuit.IPAddress, curState);
+                m_clientPingDict.Add(ipAddress, curState);
             }
             else
             {
@@ -3187,8 +3178,24 @@ namespace OpenSim.Region.Framework.Scenes
                 curState.numberOfUsers = 1;
 
                 // Save the newly logged in client's IP address and state
-                m_clientPingDict.Add(aCircuit.IPAddress, curState);
+                m_clientPingDict.Add(ipAddress, curState);
             }
+        }
+
+        #region Add/Remove Avatar Methods
+
+        public override ISceneAgent AddNewAgent(IClientAPI client, PresenceType type)
+        {
+            ScenePresence sp;
+            bool vialogin;
+            IPAddressState curState;
+            bool reallyNew = true;
+
+            // Validation occurs in LLUDPServer
+            //
+            // XXX: A race condition exists here where two simultaneous calls to AddNewAgent can interfere with
+            // each other.  In practice, this does not currently occur in the code.
+            AgentCircuitData aCircuit = m_authenticateHandler.GetAgentCircuitData(client.CircuitCode);
 
             // We lock here on AgentCircuitData to prevent a race condition between the thread adding a new connection
             // and a simultaneous one that removes it (as can happen if the client is closed at a particular point
@@ -4934,6 +4941,8 @@ namespace OpenSim.Region.Framework.Scenes
         /// <returns></returns>
         public bool CloseAgent(UUID agentID, bool force, string auth_token)
         {
+            IPAddressState curState;
+
             //m_log.DebugFormat("[SCENE]: Processing incoming close agent {0} in region {1} with auth_token {2}", agentID, RegionInfo.RegionName, auth_token);
 
             // Check that the auth_token is valid

@@ -410,7 +410,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         public void SendPacketStats()
         {
-            double updateMS = 0.0;
+            double updateSec = 0.0;
             int newPacketsReceived = 0;
             int newPacketsSent = 0;
             int newBytesReceived = 0;
@@ -432,7 +432,8 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
                 // Find the amount of time between statistics updates
                 m_statsUpdateStopwatch.Stop();
-                updateMS = m_statsUpdateStopwatch.Elapsed.TotalMilliseconds;
+                updateSec = m_statsUpdateStopwatch.Elapsed.TotalMilliseconds / 
+                    1000.0;
                 
                 // Send the statistics through the LLClientView.PopulateStats, 
                 // which will forward them to SimStatsReporter.AddPacketStats
@@ -442,11 +443,11 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 // calculated before reporting them
                 // NOTE: Casting the integers to doubles to avoid integer 
                 // truncation during division
-                callback((double) newPacketsReceived / (double) updateMS, 
-                    (double) newPacketsSent / (double) updateMS, 
-                    UnackedBytes, (double) newBytesReceived / (double) updateMS,
-                    (double) newBytesSent / (double) updateMS,
-                    (double) newErrorPackets / (double) updateMS);
+                callback((double) newPacketsReceived / updateSec, 
+                    (double) newPacketsSent / updateSec, UnackedBytes, 
+                    (double) newBytesReceived / updateSec, 
+                    (double) newBytesSent / updateSec,
+                    (double) newErrorPackets / updateSec);
 
                 // Update the currently reported statistics to include the 
                 // statistics that were just reported

@@ -1306,13 +1306,21 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             }
             else if (packet.Type == PacketType.CompleteAgentMovement)
             {
+                // The user is attempting to move into the region, this updates
+                // the count of users logging into the region to include the
+                // new user
+                // NOTE: This was moved here to prevent an error that was
+                // occuring where the user wasn't being registered by the scene
+                // before the server decided they were logged in
+                Scene.StatsReporter.UpdateUsersLoggingIn(true);
+                
                 // Send ack straight away to let the viewer know that we got it.
                 SendAckImmediate(endPoint, packet.Header.Sequence);
 
                 // We need to copy the endpoint so that it doesn't get changed when another thread reuses the
                 // buffer.
                 object[] array = new object[] { new IPEndPoint(endPoint.Address, endPoint.Port), packet };
-
+                
                 Util.FireAndForget(
                     HandleCompleteMovementIntoRegion, array, "LLUDPServer.HandleCompleteMovementIntoRegion");
 
@@ -1648,6 +1656,15 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     {
                         AgentCircuitData aCircuit = Scene.AuthenticateHandler.GetAgentCircuitData(uccp.CircuitCode.Code);
                         bool tp = (aCircuit.teleportFlags > 0);
+                        
+                        // Due to how some configurations of OpenSim do not
+                        // require the AddNewAgent method inside of Scene.cs to
+                        // require an IP Address, this call sends the data
+                        // necessary for the agent IP address statistics and
+                        // the client average ping
+                        Scene.AddAgentStatsData(aCircuit.Name, 
+                            aCircuit.IPAddress);
+
                         // Let's delay this for TP agents, otherwise the viewer doesn't know where to get resources from
                         if (!tp && !client.SceneAgent.SentInitialDataToClient)
                             client.SceneAgent.SendInitialDataToClient();
