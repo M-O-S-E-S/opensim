@@ -1663,7 +1663,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                         // necessary for the agent IP address statistics and
                         // the client average ping
                         Scene.AddAgentStatsData(aCircuit.Name, 
-                            aCircuit.IPAddress);
+                            endPoint.Address.ToString());
 
                         // Let's delay this for TP agents, otherwise the viewer doesn't know where to get resources from
                         if (!tp && !client.SceneAgent.SentInitialDataToClient)
