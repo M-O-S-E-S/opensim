@@ -1306,14 +1306,6 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             }
             else if (packet.Type == PacketType.CompleteAgentMovement)
             {
-                // The user is attempting to move into the region, this updates
-                // the count of users logging into the region to include the
-                // new user
-                // NOTE: This was moved here to prevent an error that was
-                // occuring where the user wasn't being registered by the scene
-                // before the server decided they were logged in
-                Scene.StatsReporter.UpdateUsersLoggingIn(true);
-                
                 // Send ack straight away to let the viewer know that we got it.
                 SendAckImmediate(endPoint, packet.Header.Sequence);
 
@@ -1720,6 +1712,11 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 {
                     if (Scene.TryGetClient(endPoint, out client))
                     {
+                        // This is the earliest point at which the name of the
+                        // user has been parsed, so start counting them as
+                        // logging into the server
+                        Scene.StatsReporter.AddUserLoggingIn(client.Name);
+
                         if (!client.IsActive)
                         {
                             // This check exists to catch a condition where the client has been closed by another thread
@@ -1755,14 +1752,6 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
                     Thread.Sleep(200);
                 }
-
-                // User has logged into the scene so update the list of users 
-                // logging in
-                // NOTE: The user is no longer considered logging in by opensim 
-                // because the user either logged in successfully or was locked
-                // inside of Scene::AddNewAgent, using this an assumption is
-                // made that the client is now done logging into the system
-                Scene.StatsReporter.UpdateUsersLoggingIn(false);
 
                 if (client == null)
                 {

@@ -216,6 +216,14 @@ namespace OpenSim.Region.CoreModules.Avatar.AvatarFactory
                 {
                     m_log.DebugFormat("[AVFACTORY]: Received texture update for {0} {1}", sp.Name, sp.UUID);
 
+                    // The user has sent updated textures for their avatar and
+                    // thus are considered fully logged into the server
+                    // NOTE: The name of the user is sent to make sure that the
+                    // user is not decremented from the list of logging in
+                    // users multiple times should the user choose to change
+                    // their appearance in the client
+                    m_scene.StatsReporter.RemoveUserLoggingIn(sp.Name);
+
 //                    WriteBakedTexturesReport(sp, m_log.DebugFormat);
 
                     changed = sp.Appearance.SetTextureEntries(textureEntry) || changed;

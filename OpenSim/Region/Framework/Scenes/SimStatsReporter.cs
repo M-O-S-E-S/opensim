@@ -26,6 +26,7 @@
  */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Timers;
 using OpenMetaverse.Packets;
@@ -64,6 +65,10 @@ namespace OpenSim.Region.Framework.Scenes
         // Determines the size of the array that is used to collect StatBlocks
         // for sending to the SimStats and SimExtraStatsCollector
         private const int m_statisticArraySize = 32;
+
+        // Holds the names of the users that are currently attempting to login
+        // to the server
+        private ArrayList m_usersLoggingIn;
 
         /// <summary>
         /// These are the IDs of stats sent in the StatsPacket to the viewer.
@@ -252,9 +257,6 @@ namespace OpenSim.Region.Framework.Scenes
         // update for physics
         private int m_numberPhysicsFrames;
 
-        // The current number of users attempting to login to the region
-        private int m_usersLoggingIn;
-
         // The last reported value of threads from the SmartThreadPool inside of
         // XEngine
         private int m_inUseThreads;
@@ -290,8 +292,9 @@ namespace OpenSim.Region.Framework.Scenes
             m_networkFrameTimeMilliseconds = new double[m_numberFramesStored];
             m_networkQueueSize = new int[m_numberFramesStored];
 
-            // Initialize the current number of users logging into the region
-            m_usersLoggingIn = 0;
+            // Initialize the array to hold the names of the users currently
+            // attempting to login to the server
+            m_usersLoggingIn = new ArrayList();
 
             m_scene = scene;
             m_reportedFpsCorrectionFactor = scene.MinFrameSeconds * m_nominalReportedFps;
@@ -580,7 +583,7 @@ namespace OpenSim.Region.Framework.Scenes
 
                 // Current number of users currently attemptint to login to region
                 sb[23].StatID = (uint)Stats.UsersLoggingIn;
-                sb[23].StatValue = m_usersLoggingIn;
+                sb[23].StatValue = m_usersLoggingIn.Count;
 
                 // Total number of geometric primitives in the scene
                 sb[24].StatID = (uint)Stats.TotalGeoPrim;
@@ -864,22 +867,26 @@ namespace OpenSim.Region.Framework.Scenes
             m_netLocation = m_netLocation % m_numberFramesStored;
         }
 
-        public void UpdateUsersLoggingIn(bool isLoggingIn)
+        public void AddUserLoggingIn(string name)
         {
-            // Determine whether the user has started logging in or has completed
-            // logging into the region
-            if (isLoggingIn)
+            // Check that the name does not exist in the list of users logging
+            // in, this prevents the case of the user disconnecting while
+            // logging in and reconnecting from adding multiple instances of
+            // the user
+            if (!m_usersLoggingIn.Contains(name))
             {
-                // The user is starting to login to the region so increment the
-                // number of users attempting to login to the region
-                m_usersLoggingIn++;
+                // Add the name of the user attempting to connect to the server
+                // to our list, this will allow tracking of which users have
+                // succesfully updated the texture of their avatar
+                m_usersLoggingIn.Add(name);
             }
-            else
-            {
-                // The user has finished logging into the region so decrement the
-                // number of users logging into the region
-                m_usersLoggingIn--;
-            }
+        }
+
+        public void RemoveUserLoggingIn(string name)
+        {
+            // Remove the user that has finished logging into the server, if
+            // the name doesn't exist no change to the array list occurs
+            m_usersLoggingIn.Remove(name);
         }
 
         public void SetThreadCount(int inUseThreads)
