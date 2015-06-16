@@ -4941,8 +4941,6 @@ namespace OpenSim.Region.Framework.Scenes
         /// <returns></returns>
         public bool CloseAgent(UUID agentID, bool force, string auth_token)
         {
-            IPAddressState curState;
-
             //m_log.DebugFormat("[SCENE]: Processing incoming close agent {0} in region {1} with auth_token {2}", agentID, RegionInfo.RegionName, auth_token);
 
             // Check that the auth_token is valid
