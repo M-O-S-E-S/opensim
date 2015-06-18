@@ -180,6 +180,10 @@ namespace OpenSim
                 m_log.InfoFormat("[OPENSIM] Enabling remote managed stats fetch. URL = {0}", urlBase);
             }
 
+            // Add the stream handler for agent login data if given URI exists
+            if (agentStatsURI != String.Empty)
+                MainServer.Instance.AddStreamHandler(new OpenSim.UXAgentStatusHandler(this));
+
             if (m_console is RemoteConsole)
             {
                 if (m_consolePort == 0)

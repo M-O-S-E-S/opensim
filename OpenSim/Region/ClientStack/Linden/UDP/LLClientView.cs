@@ -597,12 +597,15 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         #region Packet Handling
 
-        public void PopulateStats(int inPackets, int outPackets, int unAckedBytes)
+        public void PopulateStats(double inPacketRate, double outPacketRate, 
+            int unAckedBytes, double inByteRate, double outByteRate, 
+            double errorPacketRate)
         {
             NetworkStats handlerNetworkStatsUpdate = OnNetworkStatsUpdate;
             if (handlerNetworkStatsUpdate != null)
             {
-                handlerNetworkStatsUpdate(inPackets, outPackets, unAckedBytes);
+                handlerNetworkStatsUpdate(inPacketRate, outPacketRate, 
+                    unAckedBytes, inByteRate, outByteRate, errorPacketRate);
             }
         }
 

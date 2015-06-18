@@ -91,7 +91,7 @@ namespace OpenSim.Framework.Servers
         /// </summary>
         protected virtual void StartupSpecific()
         {
-            StatsManager.SimExtraStats = new SimExtraStatsCollector();
+            StatsManager.SimExtraStats = new SimExtraStatsCollector(Config);
             RegisterCommonCommands();
             RegisterCommonComponents(Config);
 
@@ -172,6 +172,20 @@ namespace OpenSim.Framework.Servers
             else 
             {
                 return StatsManager.SimExtraStats.XReport((DateTime.Now - m_startuptime).ToString() , m_version);
+            }
+        }
+
+        public string AgentReport(IOSHttpRequest httpRequest)
+        {
+            // If the given http request contains its own callback function, support it by wrapping the string response
+            // in a jsonp format; otherwise just return the data response as it was received
+            if (httpRequest.Query.ContainsKey("callback"))
+            {
+                return httpRequest.Query["callback"].ToString() + "(" + StatsManager.SimExtraStats.AgentReport((DateTime.Now - m_startuptime).ToString(), m_version) + ");";
+            }
+            else
+            {
+                return StatsManager.SimExtraStats.AgentReport((DateTime.Now - m_startuptime).ToString(), m_version);
             }
         }
     }

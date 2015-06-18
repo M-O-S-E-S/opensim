@@ -26,6 +26,7 @@
  */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Timers;
 using OpenMetaverse.Packets;
@@ -50,8 +51,8 @@ namespace OpenSim.Region.Framework.Scenes
         public const string SlowFramesStatName = "SlowFrames";
 
         public delegate void SendStatResult(SimStats stats);
-
         public delegate void YourStatsAreWrong();
+        public delegate void SendAgentStat(string name, string ipAddress, string timestamp);
 
         public event SendStatResult OnSendStatsResult;
 
@@ -63,7 +64,11 @@ namespace OpenSim.Region.Framework.Scenes
 
         // Determines the size of the array that is used to collect StatBlocks
         // for sending to the SimStats and SimExtraStatsCollector
-        private const int m_statisticArraySize = 27;
+        private const int m_statisticArraySize = 32;
+
+        // Holds the names of the users that are currently attempting to login
+        // to the server
+        private ArrayList m_usersLoggingIn;
 
         /// <summary>
         /// These are the IDs of stats sent in the StatsPacket to the viewer.
@@ -113,7 +118,12 @@ namespace OpenSim.Region.Framework.Scenes
             UsersLoggingIn = 36,
             TotalGeoPrim = 37,
             TotalMesh = 38,
-            ThreadCount = 39
+            ThreadCount = 39,
+            UDPInRate = 40,
+            UDPOutRate = 41,
+            UDPErrorRate = 42,
+            NetworkQueueSize = 43,
+            ClientPingAvg = 44
         }
 
         /// <summary>
@@ -213,8 +223,8 @@ namespace OpenSim.Region.Framework.Scenes
         private int m_numPrim;
         private int m_numGeoPrim;
         private int m_numMesh;
-        private int m_inPacketsPerSecond;
-        private int m_outPacketsPerSecond;
+        private double m_inPacketsPerSecond;
+        private double m_outPacketsPerSecond;
         private int m_activePrim;
         private int m_unAckedBytes;
         private int m_pendingDownloads;
@@ -236,10 +246,12 @@ namespace OpenSim.Region.Framework.Scenes
         private double[] m_simulationFrameTimeMilliseconds;
         private double[] m_physicsFrameTimeMilliseconds;
         private double[] m_networkFrameTimeMilliseconds;
+        private int[] m_networkQueueSize;
 
         // The location of the next time in milliseconds that will be
         // (over)written when the next frame completes
         private int m_nextLocation = 0;
+        private int m_netLocation = 0;
 
         // The correct number of frames that have completed since the last stats
         // update for physics
@@ -251,6 +263,20 @@ namespace OpenSim.Region.Framework.Scenes
         // The last reported value of threads from the SmartThreadPool inside of
         // XEngine
         private int m_inUseThreads;
+        
+        // These variables record the most recent snapshot of the UDP network 
+        // by holding values for the bytes per second in and out, and the number
+        // of packets ignored per second
+        private double m_inByteRate = 0.0;
+        private double m_outByteRate = 0.0;
+        private double m_errorPacketRate = 0.0;
+
+        // Average ping between the server and a subset of connected users
+        private double m_clientPing = 0.0;
+
+        // Keeps track of the total ping time, and the number, of all connected clients pinged
+        private double m_totalPingTime = 0;
+        private int m_clientPingCount = 0;
 
         private Scene m_scene;
 
@@ -267,9 +293,11 @@ namespace OpenSim.Region.Framework.Scenes
             m_simulationFrameTimeMilliseconds = new double[m_numberFramesStored];
             m_physicsFrameTimeMilliseconds = new double[m_numberFramesStored];
             m_networkFrameTimeMilliseconds = new double[m_numberFramesStored];
+            m_networkQueueSize = new int[m_numberFramesStored];
 
-            // Initialize the current number of users logging into the region
-            m_usersLoggingIn = 0;
+            // Initialize the array to hold the names of the users currently
+            // attempting to login to the server
+            m_usersLoggingIn = new ArrayList();
 
             m_scene = scene;
             m_reportedFpsCorrectionFactor = scene.MinFrameSeconds * m_nominalReportedFps;
@@ -283,7 +311,9 @@ namespace OpenSim.Region.Framework.Scenes
             m_report.Enabled = true;
 
             if (StatsManager.SimExtraStats != null)
+            {
                 OnSendStatsResult += StatsManager.SimExtraStats.ReceiveClassicSimStatsPacket;
+            }
 
             /// At the moment, we'll only report if a frame is over 120% of target, since commonly frames are a bit
             /// longer than ideal (which in itself is a concern).
@@ -349,6 +379,7 @@ namespace OpenSim.Region.Framework.Scenes
             double simulationSumFrameTime;
             double physicsSumFrameTime;
             double networkSumFrameTime;
+            double networkSumQueueSize;
             float frameDilation;
             int currentFrame;
 
@@ -446,6 +477,7 @@ namespace OpenSim.Region.Framework.Scenes
                 simulationSumFrameTime = 0;
                 physicsSumFrameTime = 0;
                 networkSumFrameTime = 0;
+                networkSumQueueSize = 0;
 
                 // Loop through all the frames that were stored for the current
                 // heartbeat to process the moving average of frame times
@@ -458,6 +490,7 @@ namespace OpenSim.Region.Framework.Scenes
                         m_simulationFrameTimeMilliseconds[i];
                     physicsSumFrameTime += m_physicsFrameTimeMilliseconds[i];
                     networkSumFrameTime += m_networkFrameTimeMilliseconds[i];
+                    networkSumQueueSize += m_networkQueueSize[i];
                 }
 
                 // Get the index that represents the current frame based on the next one known; go back
@@ -520,10 +553,10 @@ namespace OpenSim.Region.Framework.Scenes
                   m_numberFramesStored;
 
                 sb[13].StatID = (uint)Stats.InPacketsPerSecond;
-                sb[13].StatValue = (m_inPacketsPerSecond / m_statsUpdateFactor);
+                sb[13].StatValue = (float) m_inPacketsPerSecond;
 
                 sb[14].StatID = (uint)Stats.OutPacketsPerSecond;
-                sb[14].StatValue = (m_outPacketsPerSecond / m_statsUpdateFactor);
+                sb[14].StatValue = (float) m_outPacketsPerSecond;
 
                 sb[15].StatID = (uint)Stats.UnAckedBytes;
                 sb[15].StatValue = m_unAckedBytes;
@@ -553,7 +586,7 @@ namespace OpenSim.Region.Framework.Scenes
 
                 // Current number of users currently attemptint to login to region
                 sb[23].StatID = (uint)Stats.UsersLoggingIn;
-                sb[23].StatValue = m_usersLoggingIn;
+                sb[23].StatValue = m_usersLoggingIn.Count;
 
                 // Total number of geometric primitives in the scene
                 sb[24].StatID = (uint)Stats.TotalGeoPrim;
@@ -566,7 +599,31 @@ namespace OpenSim.Region.Framework.Scenes
                 // Current number of threads that XEngine is using
                 sb[26].StatID = (uint)Stats.ThreadCount;
                 sb[26].StatValue = m_inUseThreads;
+                
+                // Tracks the number of bytes that are received by the server's
+                // UDP network handler
+                sb[27].StatID = (uint)Stats.UDPInRate;
+                sb[27].StatValue = (float) m_inByteRate;
+                
+                // Tracks the number of bytes that are sent by the server's UDP 
+                // network handler
+                sb[28].StatID = (uint)Stats.UDPOutRate;
+                sb[28].StatValue = (float) m_outByteRate;
+                
+                // Tracks the number of packets that were received by the 
+                // server's UDP network handler, that were unable to be processed
+                sb[29].StatID = (uint)Stats.UDPErrorRate;
+                sb[29].StatValue = (float) m_errorPacketRate;
 
+                // Track the queue size of the network as a moving average
+                sb[30].StatID = (uint)Stats.NetworkQueueSize;
+                sb[30].StatValue = (float) networkSumQueueSize / 
+                    m_numberFramesStored;
+
+                // Current average ping between the server and a subset of its conneced users
+                sb[31].StatID = (uint)Stats.ClientPingAvg;
+                sb[31].StatValue = (float) m_clientPing;
+                
                 for (int i = 0; i < m_statisticArraySize; i++)
                 {
                     lastReportedSimStats[i] = sb[i].StatValue;
@@ -754,14 +811,13 @@ namespace OpenSim.Region.Framework.Scenes
       }
 
       public void addFrameTimeMilliseconds(double total, double simulation,
-         double physics, double network)
+         double physics)
       {
          // Save the frame times from the current frame into the appropriate
          // arrays
          m_totalFrameTimeMilliseconds[m_nextLocation] = total;
          m_simulationFrameTimeMilliseconds[m_nextLocation] = simulation;
          m_physicsFrameTimeMilliseconds[m_nextLocation] = physics;
-         m_networkFrameTimeMilliseconds[m_nextLocation] = network;
 
          // Update to the next location in the list
          m_nextLocation++;
@@ -787,29 +843,53 @@ namespace OpenSim.Region.Framework.Scenes
             m_scriptLinesPerSecond += count;
         }
 
-        public void AddPacketsStats(int inPackets, int outPackets, int unAckedBytes)
+        public void AddPacketsStats(double inPacketRate, double outPacketRate, 
+            int unAckedBytes, double inByteRate, double outByteRate, 
+            double errorPacketRate)
         {
-            AddInPackets(inPackets);
-            AddOutPackets(outPackets);
+            m_inPacketsPerSecond = inPacketRate;
+            m_outPacketsPerSecond = outPacketRate;
             AddunAckedBytes(unAckedBytes);
+            m_inByteRate = inByteRate;
+            m_outByteRate = outByteRate;
+            m_errorPacketRate = errorPacketRate;
+        }
+        
+        public void AddPacketProcessStats(double processTime, int queueSize)
+        {
+            // Store the time that it took to process the most recent UDP 
+            // message and the size of the UDP network in queue
+            m_networkFrameTimeMilliseconds[m_netLocation] = processTime;
+            m_networkQueueSize[m_netLocation] = queueSize;
+            
+            m_netLocation++;
+            
+            // Since the list will begin to overwrite the oldest frame values
+            // first, the network location needs to loop back to the beginning 
+            // of the list whenever it reaches the end
+            m_netLocation = m_netLocation % m_numberFramesStored;
         }
 
-        public void UpdateUsersLoggingIn(bool isLoggingIn)
+        public void AddUserLoggingIn(string name)
         {
-            // Determine whether the user has started logging in or has completed
-            // logging into the region
-            if (isLoggingIn)
+            // Check that the name does not exist in the list of users logging
+            // in, this prevents the case of the user disconnecting while
+            // logging in and reconnecting from adding multiple instances of
+            // the user
+            if (!m_usersLoggingIn.Contains(name))
             {
-                // The user is starting to login to the region so increment the
-                // number of users attempting to login to the region
-                m_usersLoggingIn++;
+                // Add the name of the user attempting to connect to the server
+                // to our list, this will allow tracking of which users have
+                // succesfully updated the texture of their avatar
+                m_usersLoggingIn.Add(name);
             }
-            else
-            {
-                // The user has finished logging into the region so decrement the
-                // number of users logging into the region
-                m_usersLoggingIn--;
-            }
+        }
+
+        public void RemoveUserLoggingIn(string name)
+        {
+            // Remove the user that has finished logging into the server, if
+            // the name doesn't exist no change to the array list occurs
+            m_usersLoggingIn.Remove(name);
         }
 
         public void SetThreadCount(int inUseThreads)
@@ -817,6 +897,41 @@ namespace OpenSim.Region.Framework.Scenes
             // Save the new number of threads to our member variable to send to
             // the extra stats collector
             m_inUseThreads = inUseThreads;
+        }
+
+        public void AddClientPingTime(double pingTime, int subset)
+        {
+            // Keep track of the total ping time from various clients
+            m_totalPingTime += pingTime;
+
+            // Increment the number of clients pinged and check to see if we've reached
+            // the desired number of clients
+            m_clientPingCount++;
+            if (m_clientPingCount >= subset)
+            {
+                // Calculate the ping average between the server and its connected clients
+                m_clientPing = m_totalPingTime / (double)m_clientPingCount;
+
+                // Reset the client count and the total ping time
+                m_clientPingCount = 0;
+                m_totalPingTime = 0;
+            }
+        }
+
+        public void AddNewAgent(string name, string ipAddress, string timestamp)
+        {
+            // Report the new agent being added to the additional stats collector,
+            // if the extra stats collector exists
+            if (StatsManager.SimExtraStats != null)
+                StatsManager.SimExtraStats.AddAgent(name, ipAddress, timestamp);
+        }
+
+        public void RemoveAgent(string name)
+        {
+            // Report the agent being removed to the additional stats collector,
+            // if the extra stats collector exists
+            if (StatsManager.SimExtraStats != null)
+                StatsManager.SimExtraStats.RemoveAgent(name);
         }
 
         #endregion
