@@ -126,7 +126,6 @@ namespace OpenSim.Region.Framework.Scenes
             {
                 return m_physicsEnabled;
             }
-        }
 
             set
             {
@@ -5007,12 +5006,7 @@ namespace OpenSim.Region.Framework.Scenes
 
                     return false;
                 }
-                else
-                {
-                    string tile
-                    = Util.GetConfigVarFromSections<string>(
-                    config, "MaptileStaticUUID", possibleMapConfigSections, UUID.Zero.ToString());
-
+                
                 sp.LifecycleState = ScenePresenceState.PreRemove;
 
                 return true;
@@ -5218,21 +5212,6 @@ namespace OpenSim.Region.Framework.Scenes
                             m_log.DebugFormat("Edited scale of Primitive: {0}", part.Name);
                         }
                     }
-                    else
-                    {
-                        m_log.DebugFormat(
-                        "[SCENE]: No telehub {0} found to direct {1} in {2}.  Continuing.",
-                        RegionInfo.RegionSettings.TelehubObject, acd.Name, Name);
-                    }
-
-                    // Final permissions check; this time we don't allow changing the position
-                    if (!IsPositionAllowed(acd.AgentID, acd.startpos, ref reason))
-                    {
-                        m_authenticateHandler.RemoveCircuit(acd.circuitcode);
-                        return false;
-                    }
-
-                    return true;
                 }
             }
         }
@@ -5434,70 +5413,6 @@ namespace OpenSim.Region.Framework.Scenes
         {
             return new List<ScenePresence>(m_sceneGraph.GetScenePresences());
         }
-
-        //        /// <summary>
-        //        /// The Grid has requested that we log-off a user.  Log them off.
-        //        /// </summary>
-        //        /// <param name="AvatarID">Unique ID of the avatar to log-off</param>
-        //        /// <param name="RegionSecret">SecureSessionID of the user, or the RegionSecret text when logging on to the grid</param>
-        //        /// <param name="message">message to display to the user.  Reason for being logged off</param>
-        //        public void HandleLogOffUserFromGrid(UUID AvatarID, UUID RegionSecret, string message)
-        //        {
-        //            ScenePresence loggingOffUser = GetScenePresence(AvatarID);
-        //            if (loggingOffUser != null)
-        //            {
-        //                UUID localRegionSecret = UUID.Zero;
-        //                bool parsedsecret = UUID.TryParse(RegionInfo.regionSecret, out localRegionSecret);
-        //
-        //                // Region Secret is used here in case a new sessionid overwrites an old one on the user server.
-        //                // Will update the user server in a few revisions to use it.
-        //
-        //                if (RegionSecret == loggingOffUser.ControllingClient.SecureSessionId || (parsedsecret && RegionSecret == localRegionSecret))
-        //                {
-        //                    m_sceneGridService.SendCloseChildAgentConnections(loggingOffUser.UUID, loggingOffUser.KnownRegionHandles);
-        //                    loggingOffUser.ControllingClient.Kick(message);
-        //                    // Give them a second to receive the message!
-        //                    Thread.Sleep(1000);
-        //                    loggingOffUser.ControllingClient.Close();
-        //                }
-        //                else
-        //                {
-        //                    m_log.Info("[USERLOGOFF]: System sending the LogOff user message failed to sucessfully authenticate");
-        //                }
-        //            }
-        //            else
-        //            {
-        //                m_log.InfoFormat("[USERLOGOFF]: Got a logoff request for {0} but the user isn't here.  The user might already have been logged out", AvatarID.ToString());
-        //            }
-        //        }
-
-        //        /// <summary>
-        //        /// Triggered when an agent crosses into this sim.  Also happens on initial login.
-        //        /// </summary>
-        //        /// <param name="agentID"></param>
-        //        /// <param name="position"></param>
-        //        /// <param name="isFlying"></param>
-        //        public virtual void AgentCrossing(UUID agentID, Vector3 position, bool isFlying)
-        //        {
-        //            ScenePresence presence = GetScenePresence(agentID);
-        //            if (presence != null)
-        //            {
-        //                try
-        //                {
-        //                    presence.MakeRootAgent(position, isFlying);
-        //                }
-        //                catch (Exception e)
-        //                {
-        //                    m_log.ErrorFormat("[SCENE]: Unable to do agent crossing, exception {0}{1}", e.Message, e.StackTrace);
-        //                }
-        //            }
-        //            else
-        //            {
-        //                m_log.ErrorFormat(
-        //                    "[SCENE]: Could not find presence for agent {0} crossing into scene {1}",
-        //                    agentID, RegionInfo.RegionName);
-        //            }
-        //        }
 
         /// <summary>
         /// Performs action on all avatars in the scene (root scene presences)

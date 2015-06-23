@@ -257,9 +257,6 @@ namespace OpenSim.Region.Framework.Scenes
         // update for physics
         private int m_numberPhysicsFrames;
 
-        // The current number of users attempting to login to the region
-        private int m_usersLoggingIn;
-
         // The last reported value of threads from the SmartThreadPool inside of
         // XEngine
         private int m_inUseThreads;
