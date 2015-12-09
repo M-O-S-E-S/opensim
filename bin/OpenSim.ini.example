@@ -252,6 +252,7 @@
     ; physics = BulletSim
     ; physics = basicphysics
     ; physics = POS
+    ; physics = PhysX
 
     ;# {DefaultScriptEngine} {} {Default script engine} {XEngine} XEngine
     ;; Default script engine to use. Currently, we only have XEngine
@@ -966,6 +967,19 @@
     ;; If this INI file is not included, the OSSL functions are disabled.
     Include-osslEnable = "config-include/osslEnable.ini"
 
+[PhysXPlugin]
+    ;# {Include-PhysXVariables} {} {Include file for all of the PhysX
+    ;variables}
+    ;; Optionally include file that allows the server administrator to quickly
+    ;adjust physics values for the PhysX plugin
+    Include-PhysXVariables = "config-include/PhysX.ini"
+
+[AME]
+    ;# {Include-AdvancedMetricsEnable} {} {Include file for enabling and
+    ;configuring the networking metrics}
+    ;; This is an optional file that when not included will turn off the
+    ;majority of network statistics
+    Include-AdvancedMetricsEnable = "config-include/AdvancedSimulationMetrics.ini"
 
 [MRM]
     ;; Enables the Mini Region Modules Script Engine.

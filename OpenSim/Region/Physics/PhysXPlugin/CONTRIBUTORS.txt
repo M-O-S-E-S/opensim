@@ -1,0 +1,15 @@
+
+This PhysX Plug-in was created within the Interactive Realities Laboratory at the University of Central Florida's Institute for Simulation and Training.  Original contributors include (in alphabetical order):
+
+Kevoye Boswell
+Chandler Lattin
+Robert Louden
+Glenn Martin
+Shehan Sirigampola
+Steven Zielinski
+
+
+Additional contributors include:
+
+<none>
+
