@@ -514,6 +514,73 @@
       </Files>
     </Project>
 
+    <Project frameworkVersion="v4_0" name="OpenSim.Region.Physics.PhysXPlugin" path="OpenSim/Region/Physics/PhysXPlugin" type="Library">
+      <Configuration name="Debug">
+        <Options>
+          <OutputPath>../../../../bin/Physics/</OutputPath>
+        </Options>
+      </Configuration>
+      <Configuration name="Release">
+        <Options>
+          <OutputPath>../../../../bin/Physics/</OutputPath>
+        </Options>
+      </Configuration>
+
+      <ReferencePath>../../../../bin/</ReferencePath>
+      <Reference name="System"/>
+      <Reference name="System.Core"/>
+      <Reference name="OpenMetaverseTypes" path="../../../../bin/"/>
+      <Reference name="Nini" path="../../../../bin/"/>
+      <Reference name="OpenSim.Framework"/>
+      <Reference name="OpenSim.Framework.Console"/>
+      <Reference name="OpenSim.Framework.Monitoring"/>
+      <Reference name="OpenSim.Region.CoreModules"/>
+      <Reference name="OpenSim.Region.Framework"/>
+      <Reference name="OpenSim.Region.OptionalModules"/>
+      <Reference name="OpenSim.Region.Physics.Manager"/>
+      <Reference name="log4net" path="../../../../bin/"/>
+      
+      <Files>
+        <Match pattern="*.cs" recurse="true">
+          <Exclude name="Tests" pattern="Tests"/>
+        </Match>
+      </Files>
+    </Project>
+
+    <Project frameworkVersion="v4_0" name="OpenSim.Region.Physics.PhysXPlugin.Tests" path="OpenSim/Region/Physics/PhysXPlugin/Tests" type="Library">
+      <Configuration name="Debug">
+        <Options>
+          <OutputPath>../../../../../bin/</OutputPath>
+        </Options>
+      </Configuration>
+      <Configuration name="Release">
+        <Options>
+          <OutputPath>../../../../../bin/</OutputPath>
+        </Options>
+      </Configuration>
+
+      <ReferencePath>../../../../../bin/</ReferencePath>
+
+      <ReferencePath>../../../../../bin/</ReferencePath>
+      <Reference name="System"/>
+      <Reference name="System.Core"/>
+      <Reference name="System.Data"/>
+      <Reference name="Nini" path="../../../../../bin/"/>
+      <Reference name="log4net" path="../../../../../bin/"/>
+      <Reference name="nunit.framework" path="../../../../../bin/"/>
+      <Reference name="OpenMetaverse" path="../../../../../bin/"/>
+      <Reference name="OpenMetaverseTypes" path="../../../../../bin/"/>
+      <Reference name="OpenSim.Framework"/>
+      <Reference name="OpenSim.Tests.Common"/>
+      <Reference name="OpenSim.Region.CoreModules"/>
+      <Reference name="OpenSim.Region.Physics.Meshing" path="../../../../../bin/Physics/"/>
+      <Reference name="OpenSim.Region.Physics.Manager"/>
+      <Reference name="OpenSim.Region.Physics.PhysXPlugin" path="../../../../../bin/Physics/"/>
+      <Files>
+        <Match pattern="*.cs" recurse="false"/>
+      </Files>
+    </Project>
+
     <Project frameworkVersion="v4_0" name="OpenSim.Region.Physics.Meshing" path="OpenSim/Region/Physics/Meshing" type="Library">
       <Configuration name="Debug">
         <Options>
@@ -3399,6 +3466,7 @@
       </Files>
     </Project>
 
+
     <Project frameworkVersion="v4_0" name="OpenSim.Region.Physics.BulletSPlugin.Tests" path="OpenSim/Region/Physics/BulletSPlugin/Tests" type="Library">
       <Configuration name="Debug">
         <Options>
@@ -3559,6 +3627,35 @@
         <Match pattern="*.cs" recurse="false"/>
       </Files>
     </Project>
+
+    <Project frameworkVersion="v4_0" name="physicsTestPlugin" path="addon-modules/physicsTestPlugin" type="Library">
+    <Configuration name="Debug">
+        <Options>
+            <OutputPath>../../bin/</OutputPath>
+        </Options>
+    </Configuration>
+    <Configuration name="Release">
+        <Options>
+            <OutputPath>../../bin/</OutputPath>
+        </Options>
+    </Configuration>
+ 
+    <ReferencePath>../../bin/</ReferencePath>
+    <Reference name="System"/>
+    <Reference name="OpenSim.Framework"/>
+    <Reference name="OpenSim.Framework.Monitoring"/>
+    <Reference name="OpenSim.Region.Framework"/>
+    <Reference name="OpenSim.Region.OptionalModules"/>
+    
+    <Reference name="Nini" path="../../bin/"/>
+    <Reference name="log4net" path="../../bin/"/>
+    <Reference name="OpenMetaverseTypes" path="../../bin/"/>
+    <Reference name="Mono.Addins" path="../../bin/"/>
+ 
+    <Files>
+        <Match pattern="*.cs" recurse="true"/>
+    </Files>
+</Project>
 
   <?include file="addon-modules/*/prebuild*.xml" ?>
 
