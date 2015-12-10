@@ -279,6 +279,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         private List<PxPhysObject> m_childObjects = new List<PxPhysObject>();
 
         /// <summary>
+        /// A mutex object used to ensure that the linkset children list is
+        /// thread-safe.
+        /// </summary>
+        private Object m_childLock = new Object();
+
+        /// <summary>
         /// Stores the collisions that have been collected for the new
         /// collision report to OpenSim.
         /// </summary>
@@ -312,7 +318,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// </summary>
         private int CrossingFailures { get; set; }
 
-                /// <summary>
+        /// <summary>
         /// A collection of physical actors that are acting upon this physics
         /// object within the scene.
         /// </summary>
@@ -643,6 +649,10 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     // If there is a mesh for this object's shape, it needs
                     // to be rebuilt; so release the reference to the old mesh
                     m_primMesh = null;
+
+                    // Reset the asset state, because they need to be fetched
+                    // again
+                    PrimAssetState = AssetState.UNKNOWN;
                     
                     // Update the actor with updated size value
                     BuildPhysicalShape();
@@ -854,7 +864,13 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // If the given physics object is valid, add it to the list
             // children objects that are linked under this object
             if (childObj != null)
-                m_childObjects.Add(childObj);
+            {
+                // Add the child in a thread-safe manner
+                lock (m_childLock)
+                {
+                    m_childObjects.Add(childObj);
+                }
+            }
         }
 
 
@@ -865,8 +881,11 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         public void RemoveFromLinkset(PxPhysObject childObj)
         {
             // Remove the given child from the list of children objects that
-            // are linked under this object
-            m_childObjects.Remove(childObj);
+            // are linked under this object (in a thread-safe manner)
+            lock (m_childLock)
+            {
+                m_childObjects.Remove(childObj);
+            }
         }
 
 
@@ -1263,26 +1282,29 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 Vector3 sum;
 
                 // Check to see if this object has any children objects that are
-                // linked to it
-                if (m_childObjects.Count == 0)
+                // linked to it in a thread-safe manner
+                lock (m_childLock)
                 {
-                    // There are no children, so return the position of the
-                    // object
-                    return m_rawPosition;
-                }
-                else
-                {
-                    // Since there are children objects, average the positions
-                    // of this object and the children
-                    sum = m_rawPosition;
-                    foreach (PxPhysObject currChild in m_childObjects)
+                    if (m_childObjects.Count == 0)
                     {
-                        sum += currChild.Position;
+                        // There are no children, so return the position of the
+                        // object
+                        return m_rawPosition;
                     }
-                    sum /= (m_childObjects.Count + 1);
-
-                    // Return the average position
-                    return sum;
+                    else
+                    {
+                        // Since there are children objects, average the
+                        // positions of this object and the children
+                        sum = m_rawPosition;
+                        foreach (PxPhysObject currChild in m_childObjects)
+                        {
+                            sum += currChild.Position;
+                        }
+                        sum /= (m_childObjects.Count + 1);
+ 
+                        // Return the average position
+                        return sum;
+                    }
                 }
             }
         }
@@ -1299,32 +1321,35 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 float totalMass;
 
                 // Check to see if this object is the parent object of a
-                // linkset
+                // linkset in a thread-safe manner
+                lock (m_childLock)
+                {
                 if (m_childObjects.Count > 0)
                 {
-                    // Calculate the weighted sum of the masses of each object
-                    // in the linkset; also calculate the total mass of the
-                    // linkset
-                    sum = m_rawPosition * Mass;
-                    totalMass = Mass;
-                    foreach(PxPhysObject currObj in m_childObjects)
-                    {
-                        sum += currObj.Position * currObj.Mass;
-                        totalMass += currObj.Mass;
+                        // Calculate the weighted sum of the masses of each
+                        // object in the linkset; also calculate the total
+                        // mass of the linkset
+                        sum = m_rawPosition * Mass;
+                        totalMass = Mass;
+                        foreach(PxPhysObject currObj in m_childObjects)
+                        {
+                            sum += currObj.Position * currObj.Mass;
+                            totalMass += currObj.Mass;
+                        }
+ 
+                        // Average the weighted mass over the total mass to
+                        // find the center of mass; make sure not to divide by 0
+                        if (totalMass > 0.0f)
+                            sum /= totalMass;
+ 
+                        // Return the resulting position
+                        return sum;
                     }
-
-                    // Average the weighted mass over the total mass to find the
-                    // center of mass; make sure not to divide by 0
-                    if (totalMass > 0.0f)
-                        sum /= totalMass;
-
-                    // Return the resulting position
-                    return sum;
-                }
-                else
-                {
-                    // This is not a linkset, so return the regular position
-                    return m_rawPosition;
+                    else
+                    {
+                        // This is not a linkset, so return the regular position
+                        return m_rawPosition;
+                    }
                 }
             }
         }
@@ -2507,9 +2532,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     // If this object has any children linkset objects,
                     // go ahead and build them now so that they can be
                     // properly attached
-                    foreach (PxPhysObject currObj in m_childObjects)
+                    lock (m_childLock)
                     {
-                        currObj.BuildPhysicalShape();
+                        foreach (PxPhysObject currObj in m_childObjects)
+                        {
+                            currObj.BuildPhysicalShape();
+                        }
                     }
                 }
 
