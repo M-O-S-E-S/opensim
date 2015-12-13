@@ -723,17 +723,21 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     // and would not need to unfreeze when the user is finished
                     if (m_isPhysical)
                     {
+                        // Check to see if this objct is part of a linkset
                         if (m_linkParent == null)
                         {
-                            // First remove the actor from the scene
+                            // Remove the actor from the scene, so that it
+                            // can be properly re-built
                             m_pxScene.PhysX.RemoveActor(LocalID);
                         }
                         else
                         {
+                            // Since this object is part of a linkset, remove
+                            // its shape from the linkset parent instead, since
+                            // it does not have an actor in the PhysX scene
                             m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID,
                                 m_shapeID);
                         }
-
 
                         // Indicate that this object is no longer built in the
                         // PhysX scene

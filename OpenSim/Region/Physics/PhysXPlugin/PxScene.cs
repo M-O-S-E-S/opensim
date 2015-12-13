@@ -886,6 +886,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // Re-build any tainted objects in a thread-safe manner
             lock (m_taintedObjects)
             {
+                // Go through each of the tainted objects in the dictionary
                 foreach (KeyValuePair<uint, PxPhysObject> currPair
                     in m_taintedObjects)
                 {
