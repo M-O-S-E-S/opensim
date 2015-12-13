@@ -886,10 +886,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // Re-build any tainted objects in a thread-safe manner
             lock (m_taintedObjects)
             {
-<<<<<<< HEAD
                 // Go through each of the tainted objects in the dictionary
-=======
->>>>>>> 76e1bbb... Fixed Linkset Creation Issue
                 foreach (KeyValuePair<uint, PxPhysObject> currPair
                     in m_taintedObjects)
                 {
