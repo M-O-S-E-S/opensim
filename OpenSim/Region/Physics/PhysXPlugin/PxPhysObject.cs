@@ -585,7 +585,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             m_meshLOD = m_defaultMeshLOD;
 
             // Create the PhysX Wrapper physical shape for this physical object
-            BuildPhysicalShape();
+            m_pxScene.AddTaintedObject(this);
 
             // Initialise the collision event update collections
             m_collisionCollection = new CollisionEventUpdate();
@@ -641,6 +641,11 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                         // recreating the actor with the new size
                         m_pxScene.PhysX.RemoveActor(LocalID);
                     }
+                    else
+                    {
+                        m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID,
+                            m_shapeID);
+                    }
 
                     // Indicate that this object is no longer built in the
                     // physics scene
@@ -655,7 +660,10 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     PrimAssetState = AssetState.UNKNOWN;
                     
                     // Update the actor with updated size value
-                    BuildPhysicalShape();
+                    if (m_linkParent == null)
+                        m_pxScene.AddTaintedObject(this);
+                    else
+                        m_pxScene.AddTaintedObject(m_linkParent);
                 }
             }
         }
@@ -715,15 +723,29 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     // and would not need to unfreeze when the user is finished
                     if (m_isPhysical)
                     {
-                        // First remove the actor from the scene
-                        m_pxScene.PhysX.RemoveActor(LocalID);
+                        if (m_linkParent == null)
+                        {
+                            // First remove the actor from the scene
+                            m_pxScene.PhysX.RemoveActor(LocalID);
+                        }
+                        else
+                        {
+                            m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID,
+                                m_shapeID);
+                        }
+
 
                         // Indicate that this object is no longer built in the
                         // PhysX scene
                         m_isObjectBuilt = false;
 
-                        // Create the physical shape of the object
-                        BuildPhysicalShape();
+                        // Check to see if this object is part of a linkset;
+                        // if it is, have the parent do the rebuild, which
+                        // will cause the entire linkset to build properly
+                        if (m_linkParent == null)
+                            m_pxScene.AddTaintedObject(this);
+                        else
+                            m_pxScene.AddTaintedObject(m_linkParent);
                     }
                 }
             }
@@ -813,12 +835,39 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 // PhysX scene
                 m_isObjectBuilt = false;
 
-                // Add the new physical object to the PhysX scene
-                BuildPhysicalShape();
+                // Schedule a delegate that will compute the linkset right
+                // before the next simulation step occurs; this is done
+                // account for inconsistencies in relative position caused
+                // by certain OpenSim link cases
+                m_pxScene.BeforeStep += ComputeLinkset;
             }
 
             // Bullet did nothing so we are also going to do nothing for now
             return;
+        }
+
+        public void ComputeLinkset(float timestep)
+        {
+            // Check to see if this object is linked to a parent
+            if (m_linkParent != null)
+            {
+                // Calculate the position relative to the
+                // parent that preserves the overall global
+                // position of this object
+                m_linkPos = m_rawPosition -
+                    m_linkParent.Position;
+                m_linkPos *= Quaternion.Inverse(
+                    m_linkParent.Orientation);
+
+                // Calculate the relative orientation in a
+                // similar manner
+                m_linkOrient = Quaternion.Inverse(
+                    m_linkParent.Orientation) * m_orientation;
+             }
+
+             // Remove this method from the before step event, so that it
+             // doesn't keep firing on each simulate
+             m_pxScene.BeforeStep -= ComputeLinkset;
         }
 
 
@@ -847,7 +896,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 m_linkParent = null;
 
                 // Rebuild the object without the linkset
-                BuildPhysicalShape();
+                m_pxScene.AddTaintedObject(this);
             }
 
             return;
@@ -885,6 +934,21 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             lock (m_childLock)
             {
                 m_childObjects.Remove(childObj);
+            }
+        }
+
+        /// <summary>
+        /// Removes this object's shape from the linkset parent, if it is part
+        /// of a linkset
+        /// </summary>
+        public void RemoveShapeFromLinkset()
+        {
+            // Check to see if this object is part of a linkset
+            if (m_linkParent != null)
+            {
+                //m_log.InfoFormat("Removing shape "+m_shapeID);
+                // Remove this object's shape from the linkset parent
+                m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID, m_shapeID);
             }
         }
 
@@ -1544,13 +1608,24 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                         // creating the new actor
                         m_pxScene.PhysX.RemoveActor(LocalID);
                     }
+                    else
+                    {
+                        // Since this object is part of a linkset, remove its
+                        // shape from the linkset parent
+                        m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID,
+                            m_shapeID);
+                    }
+
 
                     // Indicate that this object is no longer built in the
                     // PhysX scene
                     m_isObjectBuilt = false;
 
                     // Add the new physical object to the PhysX scene
-                    BuildPhysicalShape();
+                    if (m_linkParent == null)
+                        m_pxScene.AddTaintedObject(this);
+                    else
+                        m_pxScene.AddTaintedObject(m_linkParent);
                 }
             }
         }
@@ -2191,7 +2266,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             return ret;
         }
 
-
         /// <summary>
         /// Creates the physical objects in the PhysX Wrapper by going through
         /// the PxAPIManager with the given values. This also determines the
@@ -2210,7 +2284,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             {
                // Only allow this object to be rigid dynamic (physical) object
                // if it is attached to a physical objected
-               if (m_linkParent.IsPhysical)
+               if (m_linkParent.IsPhysical && !m_isSelected)
                {
                    isPhysical = true;
                }
@@ -2264,23 +2338,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 }
                 else
                 {
-                   // Check to see if this object is linked to a parent
-                   if (m_linkParent != null)
-                   {
-                       // Calculate the position relative to the
-                       // parent that preserves the overall global
-                       // position of this object
-                       m_linkPos = m_rawPosition -
-                           m_linkParent.Position;
-                       m_linkPos *= Quaternion.Inverse(
-                           m_linkParent.Orientation);
-
-                       // Calculate the relative orientation in a
-                       // similar manner
-                       m_linkOrient = Quaternion.Inverse(
-                           m_linkParent.Orientation) * m_orientation;
-                    }
-
                     // Check to see if the shape has no cuts, twists or hollows
                     if (m_opensimBaseShape.ProfileBegin == 0 &&
                         m_opensimBaseShape.ProfileEnd == 0 &&
@@ -2371,12 +2428,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                             m_isObjectBuilt = true;
                         }
                     }
-
-                    // Enable the buoyancy actor on this physics object
-                    EnableActor(true, "PxActorBuoyancy", delegate() {
-                        return new PxActorBuoyancy(m_pxScene, this, 
-                        "PxActorBuoyancy");
-                    });
                 }
                 
                 // This checks to see if the object was created by being a
@@ -2417,11 +2468,11 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                             {
                                 // Attach this object's mesh shape to the
                                 // linkset parent
-                                m_pxScene.PhysX.AttachTriangleMesh(
-                                    m_linkParent.LocalID,
-                                    m_shapeID, Friction, Friction,
-                                    Restitution, vertices, indices,
-                                    m_linkPos, m_linkOrient);
+                                m_pxScene.PhysX.AttachConvexMesh(
+                                   m_linkParent.LocalID, m_shapeID,
+                                   Friction, Friction, Restitution,
+                                   vertices, m_linkPos, m_linkOrient,
+                                   Density);
                             }
                             else
                             {
@@ -2512,14 +2563,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                                                             MeshAssetFetched));
                                 }
                             }
-                        } 
+                        }
                     } 
-
-                    // Enable the buoyancy actor on this physics object
-                    EnableActor(true, "PxActorBuoyancy", delegate() {
-                        return new PxActorBuoyancy(m_pxScene, this, 
-                        "PxActorBuoyancy");
-                    });
                 }
 
                 // Check to see if the shape was successfully built
@@ -2536,6 +2581,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     {
                         foreach (PxPhysObject currObj in m_childObjects)
                         {
+                            // Remove the old shape, so that the new shape
+                            // can be properly attached
+                            currObj.RemoveShapeFromLinkset();
                             currObj.BuildPhysicalShape();
                         }
                     }
@@ -2576,9 +2624,13 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     this.PrimAssetState = AssetState.FETCHED;
                     assetFound = true;
 
-                    // Rebuild the physical shape of this object using the
-                    // newfound asset data
-                    BuildPhysicalShape();
+                    // Check to see if this object is part of linkset, and have
+                    // the parent rebuild the shape using the new asset data;
+                    // otherwise, directly schedule a rebuild for the object
+                    if (m_linkParent == null)
+                       m_pxScene.AddTaintedObject(this);
+                    else
+                       m_pxScene.AddTaintedObject(m_linkParent);
                 }
             }
 

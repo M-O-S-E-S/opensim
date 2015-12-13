@@ -23,6 +23,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -174,6 +175,13 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// avatars.
         /// </summary>
         public int m_simulationTime;
+
+        /// <summary>
+        /// A dictionary containing tainted objects that need to be rebuilt
+        /// before the next simulation step.
+        /// </summary>
+        private ConcurrentDictionary<uint, PxPhysObject> m_taintedObjects =
+            new ConcurrentDictionary<uint, PxPhysObject>();
 
         #endregion Fields
 
@@ -828,6 +836,23 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         }
 
         /// <summary>
+        /// Adds a tainted object to the list of tainted objects. These objects
+        /// will be re-built before the next simulation step.
+        /// </summary>
+        /// <param name="obj">The tainted physics object that needs to be
+        /// re-built</param>
+        public void AddTaintedObject(PxPhysObject obj)
+        {
+            // Attempt to add this object to the list of tainted objects in
+            // a thread-safe manner. If the object already exists within
+            // the list, this operation is ignored
+            lock (m_taintedObjects)
+            {
+                m_taintedObjects.GetOrAdd(obj.LocalID, obj);
+            }
+        }
+
+        /// <summary>
         /// Simulate the physics scene, and do all the related actions.
         /// </summary>
         /// <param name="timeStep">The timestep amount to be simulated</param>
@@ -858,6 +883,20 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // the PhysX update
             TriggerPreStepEvent(timeStep);
 
+            // Re-build any tainted objects in a thread-safe manner
+            lock (m_taintedObjects)
+            {
+                foreach (KeyValuePair<uint, PxPhysObject> currPair
+                    in m_taintedObjects)
+                {
+                    // Rebuild the current object
+                    currPair.Value.BuildPhysicalShape();
+                }
+
+                // Now that the objects have been re-built, clear the list
+                // so that they do not get repeatedly re-built
+                m_taintedObjects.Clear();
+            }
 
             // Prevent the avatar set from being manipulated
             lock (m_avatarsSet)
