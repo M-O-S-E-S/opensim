@@ -637,12 +637,15 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     // PhysX scene, if it is part of a linkset
                     if (m_linkParent == null)
                     {
-                        // First remove the actor from the scene before
-                        // recreating the actor with the new size
+                        // Remove the actor from the scene, so that it
+                        // can be properly re-built
                         m_pxScene.PhysX.RemoveActor(LocalID);
                     }
                     else
                     {
+                        // Since this object is part of a linkset, remove
+                        // its shape from the linkset parent instead, since
+                        // it does not have an actor in the PhysX scene
                         m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID,
                             m_shapeID);
                     }
@@ -950,7 +953,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // Check to see if this object is part of a linkset
             if (m_linkParent != null)
             {
-                //m_log.InfoFormat("Removing shape "+m_shapeID);
                 // Remove this object's shape from the linkset parent
                 m_pxScene.PhysX.RemoveShape(m_linkParent.LocalID, m_shapeID);
             }
