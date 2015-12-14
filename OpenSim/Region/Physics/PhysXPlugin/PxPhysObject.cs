@@ -1226,7 +1226,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
                 // PhysX is able to handle the normal density value of objects,
                 // however OpenSim sends its force values assuming that the
-                // density value has been decreased by a 0.01 factor, so this
+                // density value has been decreased by a 0.1 factor, so this
                 // variable corrects the issue
                 float forceCorrection = 10.0f;
 
@@ -1999,9 +1999,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         {
             // PhysX is able to handle the normal density value of objects,
             // however OpenSim sends its force values assuming that the
-            // density value has been decreased by a 0.01 factor, so this
+            // density value has been decreased by a 0.1 factor, so this
             // variable corrects the issue
-            float forceCorrection = 100.0f;
+            float forceCorrection = 10.0f;
 
             // Tell PhysX to add a force on the current PhysX object
             m_pxScene.PhysX.AddForce(LocalID, force * forceCorrection);
