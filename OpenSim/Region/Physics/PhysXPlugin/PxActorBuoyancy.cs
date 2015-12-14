@@ -220,11 +220,16 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 // to the surface of the water
                 buoyancyForce = (height * gravity) - ((1.0f + height) * 
                     momentum);
+
+                // Apply the calculated force to the physics object that this 
+                // acts upon
+                PhysicsScene.PhysX.AddForce(PhysicsObject.LocalID, 
+                    new Vector3(0f, 0f, buoyancyForce));
             }
 
             // Apply the calculated force to the physics object that this acts upon
-            PhysicsScene.PhysX.AddForce(PhysicsObject.LocalID, 
-                new Vector3(0f, 0f, buoyancyForce));
+            //PhysicsScene.PhysX.AddForce(PhysicsObject.LocalID, 
+            //    new Vector3(0f, 0f, buoyancyForce));
         }
     }
 }
