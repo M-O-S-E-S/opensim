@@ -226,10 +226,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 PhysicsScene.PhysX.AddForce(PhysicsObject.LocalID, 
                     new Vector3(0f, 0f, buoyancyForce));
             }
-
-            // Apply the calculated force to the physics object that this acts upon
-            //PhysicsScene.PhysX.AddForce(PhysicsObject.LocalID, 
-            //    new Vector3(0f, 0f, buoyancyForce));
         }
     }
 }
