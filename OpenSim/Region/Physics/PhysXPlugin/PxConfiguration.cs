@@ -191,6 +191,16 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// </summary>
         public float BuoyancyDensity { get; protected set; }
 
+        /// <summary>
+        /// The scale factor to be used on height field height values. Height
+        /// field values are stored as integers by PhysX, so a scale factor
+        /// can be used to preserve some precision. A smaller value preserves
+        /// more precision, but allows for a smaller range of height values.
+        /// This value must be greater than 0. A value greater than 1 will
+        /// result in loss of precision.
+        /// </summary>
+        public float HeightFieldScaleFactor { get; protected set; }
+
         #endregion
 
 
@@ -206,9 +216,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             CPUMaxThreads = 1;
             MaxUpdatesPerFrame = 8192;
             MaxCollisionsPerFrame = 8192;
-
-            // Initialize all the properties using default values
-            // All default values are explained in the Initialize(...) method
             PhysicsTimeStep = 0.89f;
             DefaultFriction = 0.2f;
             DefaultDensity = 1000.0006836f;
@@ -229,6 +236,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             TerrainCollisionMargin = 0.04f;
             CrossingFailuresBeforeOutOfBounds = 5;
             BuoyancyDensity = 1000.0f;
+            HeightFieldScaleFactor = 0.1f;
         }
 
 
@@ -300,6 +308,16 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // is given in kg/m^3, the default is 1000 kg/m^3 which is the
             // density of water at 4 degrees celcius
             BuoyancyDensity = config.GetFloat("BuoyancyDensity", 1000.0f);
+
+            /// Read in the scale factor to be used on height field height
+            /// values. Height field values are stored as integers by PhysX,
+            /// so a scale factor can be used to preserve some precision. A
+            /// smaller value preserves more precision, but allows for a
+            /// smaller range of height values.  This value must be greater
+            /// than 0. A value greater than 1 will result in loss of precision.
+            /// The default scale factor is 0.01
+            HeightFieldScaleFactor = config.GetFloat("HeightFieldScaleFactor",
+               0.01f);
         }
     }
 }

@@ -1013,7 +1013,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // generate the terrain
             PhysX.SetHeightField(TERRAIN_ACTOR_ID, m_terrainShapeID,
                 (int)m_regionExtents.X, (int)m_regionExtents.Y, 1.0f, 1.0f,
-                heightMap);
+                heightMap, UserConfig.HeightFieldScaleFactor);
         }
 
 

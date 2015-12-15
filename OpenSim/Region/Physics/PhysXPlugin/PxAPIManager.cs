@@ -798,13 +798,19 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// along the columns</param>
         /// <param name="posts">The heights of the terrain at intervals given
         /// by the row and column spacing</param>
+        /// <param name="heightScaleFactor">The height value scale factor to
+        /// be used. Determines the range and precision of height values stored
+        /// in the field. A lower value preserves more precision, but reduces
+        /// the range of height values in the field. This value must be
+        /// greater than 0</param>
         public void SetHeightField(uint terrainActorID, uint terrainShapeID,
             int regionSizeX, int regionSizeY, float rowSpacing,
-            float columnSpacing, float[] posts)
+            float columnSpacing, float[] posts, float heightScaleFactor)
         {
             // Update the height field for the terrain inside of the wrapper
             PxAPI.setHeightField(terrainActorID, terrainShapeID, regionSizeX,
-                regionSizeY, rowSpacing, columnSpacing, posts);
+                regionSizeY, rowSpacing, columnSpacing, posts,
+                heightScaleFactor);
         }
 
 
@@ -1204,7 +1210,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             [DllImport("PhysXWrapper")]
                 public static extern void setHeightField(uint terrainActorID,
                     uint terrainShapeID, int regionSizeX, int regionSizeY,
-                    float rowSpacing, float columnSpacing, float[] posts);
+                    float rowSpacing, float columnSpacing, float[] posts,
+                    float heightScaleFactor);
 
             [DllImport("PhysXWrapper")]
                 public static extern void setLinearVelocity(
