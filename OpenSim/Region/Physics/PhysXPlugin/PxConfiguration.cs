@@ -236,7 +236,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             TerrainCollisionMargin = 0.04f;
             CrossingFailuresBeforeOutOfBounds = 5;
             BuoyancyDensity = 1000.0f;
-            HeightFieldScaleFactor = 0.1f;
+            HeightFieldScaleFactor = 0.01f;
         }
 
 
