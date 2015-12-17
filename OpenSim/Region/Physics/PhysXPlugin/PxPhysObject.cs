@@ -1183,6 +1183,10 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 // Set the position to the new value 
                 m_rawPosition = value;
 
+                // Make sure the position of the physical object is above the
+                // terrain
+                PositionSanityCheck();
+
                 // Check to see if the object has been constructed in the
                 // PhysX scene and that it is not part of a linkset;
                 // If the object is part of a linkset, it does not have its
@@ -1633,6 +1637,21 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     else
                         m_pxScene.AddTaintedObject(m_linkParent);
                 }
+            }
+        }
+
+
+        /// <summary>
+        /// Determines if this object should be physically moving through the
+        /// scene.
+        /// </summary>
+        public bool IsPhysicallyActive
+        {
+            get
+            {
+                // Return true if the object is not currently being held by a
+                // user and is currently a physical object
+                return !m_isSelected && IsPhysical;
             }
         }
 
@@ -2119,6 +2138,10 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             m_rotationalVelocity.X = entityProperties.AngularVelocityX;
             m_rotationalVelocity.Y = entityProperties.AngularVelocityY;
             m_rotationalVelocity.Z = entityProperties.AngularVelocityZ;
+
+            // Check that the position of the physical object is currently
+            // above the terrain
+            PositionSanityCheck();
 
             // Refresh the physical actors on this physics object
             m_physicalActors.Refresh();
@@ -2646,6 +2669,91 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             {
                 this.PrimAssetState = AssetState.FAILED_ASSET_FETCH;
             }
+        }
+
+        
+        /// <summary>
+        /// Check that the current position is above the terrain and is not
+        /// currently out of bounds.
+        /// </summary>
+        /// <returns>True if the position was changed and false if no action
+        /// was taken</returns>
+        private bool PositionSanityCheck()
+        {
+            bool returnValue;
+            float terrainHeight;
+            float approxSize;
+            float targetHeight;
+
+            // Since this method has not corrected the position of the object
+            // in any way yet the returnValue is currently false
+            returnValue = false;
+
+            // Check that this is a physical object and actually needs to have
+            // the object's position checked
+            if (!IsPhysicallyActive)
+            {
+                // Return that no change occurred on the object
+                return returnValue;
+            }
+
+            // Check that the object exists within the terrain bound and that
+            // the terrain manager has been created
+            if (m_pxScene.TerrainManager == null ||
+                !m_pxScene.TerrainManager.IsWithinKnownTerrain(Position))
+            {
+                // Return that no change occurred on the object, if the object
+                // was outside of the terrain bounds OpenSim will handle
+                // crossing into other regions
+                return returnValue;
+            }
+
+            // Get the terrain height at this object's current position to
+            // determine if the object has fallen below the terrain
+            terrainHeight = 
+                m_pxScene.TerrainManager.GetTerrainHeightAtXYZ(Position);
+
+            // Estimate the size of the object by finding the largest side of
+            // the object
+            approxSize = Math.Max(Size.X, Math.Max(Size.Y, Size.Z));
+
+            // Check that our current position is above the terrain height
+            if ((Position.Z + approxSize / 2.0f) < terrainHeight)
+            {
+                // Find the change in height necessary so our object sits on
+                // the ground correctly
+                targetHeight = terrainHeight + (Size.Z / 2.0f);
+
+                // Update the position to just above the ground
+                Position = new Vector3(Position.X, Position.Y, targetHeight);
+
+                // Zero out all velocity on this object and remove any forces
+                // besides gravity that are acting on it
+                ZeroMotion();
+
+                // This object has been modified so our return value should be
+                // true
+                returnValue = true;
+            }
+
+            // Return whether this object was modified
+            return returnValue;
+        }
+
+        /// <summary>
+        /// Sets all velocity to zero and tells the PhysXWrapper that this
+        /// object is no longer moving.
+        /// </summary>
+        public void ZeroMotion()
+        {
+            // Zero out all forms of motion
+            m_velocity = Vector3.Zero;
+            m_acceleration = Vector3.Zero;
+            m_rotationalVelocity = Vector3.Zero;
+            m_targetVelocity = Vector3.Zero;
+
+            // Tell PhysX that this object is no longer moving
+            m_pxScene.PhysX.ClearAllForces(LocalID);
         }
 
         #endregion // Helper Methods

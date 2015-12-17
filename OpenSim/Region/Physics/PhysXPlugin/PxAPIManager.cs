@@ -1049,6 +1049,18 @@ namespace OpenSim.Region.Physics.PhysXPlugin
     
 		
         /// <summary>
+        /// Zero out all motion on the PhysX object.
+        /// </summary>
+        /// <param name='actorID'> The actor id that will zero out it's motion
+        /// </param>
+        public void ClearAllForces(uint actorID)
+        {
+            // Tell PhysX to zero out all motion on this PhysX object
+            PxAPI.clearAllForces(actorID);
+        }
+
+
+        /// <summary>
         /// Adds the force.
         /// </summary>
         /// <param name='actorID'> The actor id for the force to be added to.</param>
@@ -1252,6 +1264,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             [DllImport("PhysXWrapper")]
                 public static extern float getActorMass(uint id);
       
+            [DllImport("PhysXWrapper")]
+                public static extern void clearAllForces(uint id);
+
             [DllImport("PhysXWrapper")]
                 public static extern bool addForce(uint id, float x, float y, float z);
 
