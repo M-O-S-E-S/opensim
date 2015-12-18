@@ -33,11 +33,11 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         private float[] m_heightMap;
 
         /// <summary>
-        /// The current region size in the X coordinate.
+        /// The current region size in the X axis.
         /// </summary>
         private float m_regionSizeX;
         /// <summary>
-        /// The current region size in the Y coordinate.
+        /// The current region size in the Y axis.
         /// </summary>
         private float m_regionSizeY;
 
@@ -79,9 +79,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="heightMap"> The new height map that PhysX will be
         /// using to simulate the terrain</param>
         /// <param name="regionSizeX"> The current size of the region for the X
-        /// coordinate</param>
+        /// axis</param>
         /// <param name="regionSizeY"> The current size of the region for the Y
-        /// coordinate</param>
+        /// axis</param>
         public PxTerrainManager(float[] heightMap, float regionSizeX, 
             float regionSizeY)
         {
@@ -118,9 +118,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             int mapIndex;
 
             // Check that the terrain has not changed and that the position
-            // requested is the same as last time, according to the bullet
-            // plugin repetitive requests to this method happen a lot and this
-            // is an optimization for that
+            // requested is the same as last time
             if (!m_terrainModified && position.X == m_lastHeightTX && 
                 position.Y == m_lastHeightTY)
             {
@@ -182,6 +180,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// </summary>
         /// <param name="position"> The position that is being checked against
         /// the terrain bounds</param>
+        /// <returns> True if the position falls inside of the X and Y axis of
+        /// the region, otherwise will return false</returns>
         public bool IsWithinKnownTerrain(Vector3 position)
         {
             // Check the position against the bounds of the region
