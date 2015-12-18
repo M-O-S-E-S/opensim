@@ -1183,10 +1183,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 // Set the position to the new value 
                 m_rawPosition = value;
 
-                // Make sure the position of the physical object is above the
-                // terrain
-                PositionSanityCheck();
-
                 // Check to see if the object has been constructed in the
                 // PhysX scene and that it is not part of a linkset;
                 // If the object is part of a linkset, it does not have its
@@ -2138,10 +2134,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             m_rotationalVelocity.X = entityProperties.AngularVelocityX;
             m_rotationalVelocity.Y = entityProperties.AngularVelocityY;
             m_rotationalVelocity.Z = entityProperties.AngularVelocityZ;
-
-            // Check that the position of the physical object is currently
-            // above the terrain
-            PositionSanityCheck();
 
             // Refresh the physical actors on this physics object
             m_physicalActors.Refresh();
