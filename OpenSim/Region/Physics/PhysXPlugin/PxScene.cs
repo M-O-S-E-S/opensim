@@ -234,12 +234,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         public PxConfiguration UserConfig { get; private set; }
 
         /// <summary>
-        /// The terrain manager that will be used to determine the current
-        /// height of the terrain when doing sanity checks on objects.
-        /// </summary>
-        public PxTerrainManager TerrainManager { get; private set; }
-
-        /// <summary>
         /// Identifier used to represent the terrain in the physics engine.
         /// </summary>
         public int TerrainID
@@ -294,11 +288,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
             // Create the configuration with default values
             UserConfig = new PxConfiguration();
-
-            // Set the terrain manager to null in case an object attempts to
-            // look at the height map before the terrain manager has a height
-            // map
-            TerrainManager = null;
         }
 
 
@@ -1019,10 +1008,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         {
             // Fetch a new unique identifier for the height field shape
             m_terrainShapeID = GetNewShapeID();
-
-            // Store the new terrain inside of the terrain manager
-            TerrainManager = new PxTerrainManager(heightMap, m_regionExtents.X,
-                m_regionExtents.Y);
 
             // Send the height map to the PhysX wrapper, so the wrapper can
             // generate the terrain
