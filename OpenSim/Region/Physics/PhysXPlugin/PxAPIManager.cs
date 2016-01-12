@@ -950,7 +950,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 linLowerLimit, linUpperLimit, angLowerLimit, angUpperLimit);
         }
 
-
         /// <summary>
         /// Add a joint between an actor and the global frame.
         /// </summary>
@@ -1036,7 +1035,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             PxAPI.removeJoint(jointID);
         }
 
-		
+        
         /// <summary>
         /// Gets the mass of the specified actor.
         /// </summary>
@@ -1047,19 +1046,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             return PxAPI.getActorMass(actorID);
         }
     
-		
-        /// <summary>
-        /// Zero out all motion on the PhysX object.
-        /// </summary>
-        /// <param name='actorID'> The actor id that will zero out it's motion
-        /// </param>
-        public void ClearAllForces(uint actorID)
-        {
-            // Tell PhysX to zero out all motion on this PhysX object
-            PxAPI.clearAllForces(actorID);
-        }
-
-
+        
         /// <summary>
         /// Adds the force.
         /// </summary>
@@ -1069,6 +1056,17 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         {
             // Tell PhysX to add the force to the actor
             return PxAPI.addForce(actorID, force.X, force.Y, force.Z);
+        }
+
+        /// <summary>
+        /// Adds the force impulse.
+        /// </summary>
+        /// <param name='actorID'> The actor id for the force to be added to.</param>
+        /// <param name='force'> The force impulse as a vector. </param>
+        public bool AddForceImpulse(uint actorID, Vector3 force)
+        {
+            // Tell PhysX to add the force to the actor
+            return PxAPI.addForceImpulse(actorID, force.X, force.Y, force.Z);
         }
 
 
@@ -1082,6 +1080,43 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         {
             // Tell PhysX to add the torque to the actor
             PxAPI.addTorque(actorID, torque.X, torque.Y, torque.Z);
+        }
+
+
+        /// <summary>
+        /// Adds torque impulse to an actor.
+        /// </summary>
+        /// <param name='actorID'>The unique identifier of the actor to
+        /// which the torque is applied</param>
+        /// <param name='torque'> The torque impulse as a vector. </param>
+        public void AddTorqueImpulse(uint actorID, Vector3 torque)
+        {
+            // Tell PhysX to add the torque impulse to the actor
+            PxAPI.addTorqueImpulse(actorID, torque.X, torque.Y, torque.Z);
+        }
+
+        /// <summary>
+        /// Sets the linear damping coefficient of an actor.
+        /// </summary>
+        /// <param name="actorID"> The unique identifier of the actor to
+        /// which the linear damping coefficient is updated.</param>
+        /// <param name="damping"> The linear damping coefficient. </param>
+        public void SetLinearDamping(uint actorID, float damping)
+        {
+            // Tell PhysX to set the linear damping coefficient of the actor
+            PxAPI.setLinearDamping(actorID, damping);
+        }
+
+        /// <summary>
+        /// Sets the angular damping coefficient of an actor.
+        /// </summary>
+        /// <param name="actorID"> The unique identifier of the actor to
+        /// which the angular damping coefficient is updated.</param>
+        /// <param name="damping"> The angular damping coefficient. </param>
+        public void SetAngularDamping(uint actorID, float damping)
+        {
+            // Tell PhysX to set the angular damping coefficient of the actor
+            PxAPI.setAngularDamping(actorID, damping);
         }
 
         #endregion
@@ -1265,14 +1300,24 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 public static extern float getActorMass(uint id);
       
             [DllImport("PhysXWrapper")]
-                public static extern void clearAllForces(uint id);
+                public static extern bool addForce(uint id, float x, float y, float z);
 
             [DllImport("PhysXWrapper")]
-                public static extern bool addForce(uint id, float x, float y, float z);
+                public static extern bool addForceImpulse(uint id, float x, float y, float z);
 
             [DllImport("PhysXWrapper")]
                 public static extern void addTorque(uint id, float x, float y,
                    float z);
+
+            [DllImport("PhysXWrapper")]
+                public static extern void addTorqueImpulse(uint id, float x, float y,
+                   float z);
+
+            [DllImport("PhysXWrapper")]
+                public static extern void setLinearDamping(uint id, float damp);
+
+            [DllImport("PhysXWrapper")]
+                public static extern void setAngularDamping(uint id, float damp);
         }
     }
 }

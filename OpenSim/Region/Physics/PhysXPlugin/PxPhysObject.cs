@@ -186,6 +186,11 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         public AssetState PrimAssetState { get; protected set; }
 
         /// <summary>
+        /// Indicates the name of the vehicle actor.
+        /// </summary>
+        public const string VehicleActorName = "BasicVehicle";
+
+        /// <summary>
         /// Caches a constructed mesh, such that it does not have to re-created
         /// unless necessary. Will need to be re-created if physical properties
         /// of the object or the level of detail changes.
@@ -958,6 +963,71 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             }
         }
 
+        /// <summary>
+        /// Stops motion of the object on given axes, both linear and angular.
+        /// <param name="linear">A vector indicating around which axes linear
+        /// motion should be locked. 1.0 indicates no locking; less than 1.0
+        /// indicates locking</param>
+        /// <param name="angular">A vector indicating around which axes angular
+        /// motion should be locked. 1.0 indicates no locking; less than 1.0
+        /// indicates locking</param>
+        /// </summary>
+        public void LockMotion(Vector3 linear, Vector3 angular)
+        {
+            Vector3 angularLowerLimits, linearLowerLimits;
+
+            // Check to see if this actor is a prim; if not exit out, as this
+            // operation is only available for prims
+            if (m_physicsActorType != (int) ActorType.PRIM)
+            {
+                return;
+            }
+
+            // Check to see if the linear motion arround the axes should be
+            // locked; start off with all 3 axes unlocked
+            linearLowerLimits = Vector3.One;
+            if (linear.X < 1.0f)
+            {
+                // Lock linear around x-axis
+                linearLowerLimits.X = 0.0f;
+            }
+            if (linear.Y < 1.0f)
+            {
+                // Lock linear around y-axis
+                linearLowerLimits.Y = 0.0f;
+            }
+            if (linear.Z < 1.0f)
+            {
+                // Lock linear around z-axis
+                linearLowerLimits.Z = 0.0f;
+            }
+
+            // Check to see if the angular motion arround the x-axis should be
+            // locked; start off with all 3 axes unlocked
+            angularLowerLimits = Vector3.One;
+            if (angular.X < 1.0f)
+            {
+                // Lock angular around x-axis
+                angularLowerLimits.X = 0.0f;
+            }
+            if (angular.Y < 1.0f)
+            {
+                // Lock angular around y-axis
+                angularLowerLimits.Y = 0.0f;
+            }
+            if (angular.Z < 1.0f)
+            {
+                // Lock angular around z-axis
+                angularLowerLimits.Z = 0.0f;
+            }
+
+            // Create a joint that will restrict angular motion around the
+            // axes specified above
+            m_pxScene.PhysX.AddGlobalFrameJoint(m_fallJointID, LocalID,
+                Vector3.Zero, Quaternion.Identity, linearLowerLimits,
+                Vector3.Zero, angularLowerLimits, Vector3.Zero);
+
+        }
 
         /// <summary>
         /// Stops angular motion of the object on given axes.
@@ -972,7 +1042,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // Check to see if this object is a prim; if not exit out, as this
             // operation is only available for prims
             if (m_physicsActorType != (int) ActorType.PRIM)
+            {
                 return;
+            }
 
             // Check to see if the angular motion around the x-axis should
             // be locked; start of with all 3 axes unlocked
@@ -1245,16 +1317,42 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         {
             get
             {
-                // TODO: Return the vehicle type associated with this physical
-                // object. Bullet will actually create the correct vehicle if
-                // none currently exists.
-                
-                return 0;
+                int ret = (int) Vehicle.TYPE_NONE;
+
+                // Get the vehicle actor, and don't create one if there no type
+                PxActorVehicle vehicleActor = GetVehicleActor(false);
+
+                // If we have a vehicle actor, then return its type
+                if (vehicleActor != null)
+                {
+                    ret = (int) vehicleActor.Type;
+                }
+
+                return ret;
             }
             set
             {
-                // TODO: Given value with the new vehicle type update the
-                // physical object to use the new vehicle type.
+                PxActorVehicle vehicleActor;
+                Vehicle type = (Vehicle) value;
+                
+                if (type == Vehicle.TYPE_NONE)
+                {
+                    // Vehicle is of type 'none' so get rid of the actor if it exists
+                    vehicleActor = GetVehicleActor(false);
+                    if (vehicleActor != null)
+                    {
+                        PhysicalActors.RemoveAndRelease(vehicleActor.ActorName);
+                    }
+                }
+                else
+                {
+                    // Vehicle is not of type 'none' so create an actor
+                    vehicleActor = GetVehicleActor(true);
+                    if (vehicleActor != null)
+                    {
+                        vehicleActor.ProcessTypeChange(type);
+                    }    
+                }
             }
         }
 
@@ -1269,8 +1367,16 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// given should be updated to</param>
         public override void VehicleFloatParam(int param, float value)
         {
-            // TODO: Lookup the parameter inside of the vehicle enum and assign
-            // it the new value.
+            // Get the vehicle actor and force it to be created by
+            // passing true
+            PxActorVehicle vehicleActor = GetVehicleActor(true);
+
+            // If we have an actual vehicle actor, tell it to process updating
+            // the vector parameter
+            if (vehicleActor != null)
+            {
+                vehicleActor.ProcessFloatVehicleParam((Vehicle) param, value);
+            }
         }
 
 
@@ -1284,8 +1390,16 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// given should be updated to</param>
         public override void VehicleVectorParam(int param, Vector3 value)
         {
-            // TODO: Lookup the parameter inside of the vehicle enum and assign
-            // it the new value.
+            // Get the vehicle actor and force it to be created by
+            // passing true
+            PxActorVehicle vehicleActor = GetVehicleActor(true);
+
+            // If we have an actual vehicle actor, tell it to process updating
+            // the vector parameter
+            if (vehicleActor != null)
+            {
+                vehicleActor.ProcessVectorVehicleParam((Vehicle) param, value);
+            }
         }
 
 
@@ -1299,8 +1413,46 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// given should be updated to</param>
         public override void VehicleRotationParam(int param, Quaternion value)
         {
-            // TODO: Lookup the parameter inside of the vehicle enum and assign
-            // it the new value.
+            // Get the vehicle actor and force it to be created by
+            // passing true
+            PxActorVehicle vehicleActor = GetVehicleActor(true);
+
+            // If we have an actual vehicle actor, tell it to process updating
+            // the rotational parameter
+            if (vehicleActor != null)
+            {
+                vehicleActor.ProcessRotationVehicleParam((Vehicle) param, value);
+            }
+        }
+
+        /// <summary>
+        /// Find and return a handle to the current vehicle actor.
+        /// </summary>
+        /// <param name="createIfNone"> Create the actor if it was not found
+        /// within the physical actors</param>
+        public PxActorVehicle GetVehicleActor(bool createIfNone)
+        {
+            PxActorVehicle ret = null;
+            PxActor actor;
+
+            // If the physical actors dictionary contains this physics
+            // object vehicle actor, then set ret as the PxActorVehicle
+            if (PhysicalActors.TryGetActor(VehicleActorName, out actor))
+            {
+                ret = actor as PxActorVehicle;
+            }
+            else
+            {
+                // If there is no created actor, then create the
+                // new vehicle and add it to the physical actors
+                if (createIfNone)
+                {
+                    ret = new PxActorVehicle(m_pxScene, this, VehicleActorName);
+                    PhysicalActors.Add(ret.ActorName, ret);
+                }
+            }
+
+            return ret;
         }
 
 
@@ -1310,12 +1462,19 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// </summary>
         /// <param name="param">The enum value of the parameter that the
         /// calling location wished to change to the given parameter</param>
-        /// <param name="value">The boolean value that the parameter
-        /// given should be updated to</param>
+        /// <param name="value">To remove or add the flag specified</param>
         public override void VehicleFlags(int param, bool value)
         {
-            // TODO: Lookup the parameter inside of the vehicle enum and assign
-            // it the new value.
+            // Get the vehicle actor and force it to be created by
+            // passing true
+            PxActorVehicle vehicleActor = GetVehicleActor(true);
+
+            // If we have an actual vehicle actor, tell it to prccess updating
+            // the rotational parameter
+            if (vehicleActor != null)
+            {
+                vehicleActor.ProcessVehicleFlags(param, value);
+            }
         }
 
 
@@ -2104,7 +2263,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 m_pxScene.PhysX.RemoveActor(LocalID);
             }
         }
-
 
         /// <summary>
         /// Update the various physical properties of this object to

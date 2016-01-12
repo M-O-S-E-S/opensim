@@ -191,6 +191,114 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// </summary>
         public float BuoyancyDensity { get; protected set; }
 
+        #endregion
+
+        #region Vehicle Configuration
+
+        /// <summary>
+        /// Indicates the friction value for a vehicle physical object. Used by
+        /// the PxActorVehicle class.
+        /// </summary>
+        public float VehicleFriction { get; protected set; }
+
+        /// <summary>
+        /// Indicates the restitution value for a vehicle physical object. Used by
+        /// the PxActorVehicle class.
+        /// </summary>
+        public float VehicleRestitution { get; protected set; }
+
+        /// <summary>
+        /// Indicates the minimum velocity magnitude that can be assigned to a
+        /// vehicle physics object.
+        /// </summary>
+        public float VehicleMinLinearVelocity { get; protected set; }
+
+        /// <summary>
+        /// Indicates the minimum velocity magnitude squared that can be helped to find
+        /// when the velocity should be zero.
+        /// </summary>
+        public float VehicleMinLinearVelocitySquared { get; protected set; }
+
+        /// <summary>
+        /// This is the maximum velocity magnitude that can be assigned to a
+        /// vehicle physics object.
+        /// </summary>
+        public float VehicleMaxLinearVelocity { get; protected set; }
+
+        /// <summary>
+        /// This is the maximum velocity magnitude squared that can be assigned to a
+        /// vehicle physics object.
+        /// </summary>
+        public float VehicleMaxLinearVelocitySquared { get; protected set; }
+
+        /// <summary>
+        /// This is a float value responsible to damp vehicle angular movement,
+        /// is used by the PxActorVehicle class.
+        /// </summary>
+        public float VehicleAngularDamping { get; protected set; }
+
+        /// <summary>
+        /// This is a vector representing a fraction of the physical linear
+        /// changes applied to a vehicle, used by the PxActorVehicle class.
+        /// </summary>
+        public Vector3 VehicleLinearFactor { get; protected set; }
+
+        /// <summary>
+        /// This is a vector representing a fraction of the physical angular
+        /// changes applied to a vehicle, used by the PxActorVehicle class.
+        /// </summary>
+        public Vector3 VehicleAngularFactor { get; protected set; }
+
+        /// <summary>
+        /// This is a vector representing a fraction of the physical inertia
+        /// applied to a vehicle, used by the PxActorVehicle class.
+        /// </summary>
+        public Vector3 VehicleInertiaFactor { get; protected set; }
+
+        /// <summary>
+        /// Turn on/off vehicle linear deflection effect.
+        /// </summary>
+        public bool VehicleEnableLinearDeflection { get; protected set; }
+
+        /// <summary>
+        /// Turn on/off linear deflection Z effect on non-colliding vehicles.
+        /// </summary>
+        public bool VehicleLinearDeflectionNotCollidingNoZ { get; protected set; }
+
+        /// <summary>
+        /// Factor to multiply gravity if a ground vehicle is probably on the ground (0.0 - 1.0)
+        /// </summary>
+        public float VehicleGroundGravityFudge { get; protected set; }
+
+        /// <summary>
+        /// This is a boolean to enable/disable vehicle angular vertical
+        /// attraction effect within the PhysX plugin.
+        /// </summary>
+        public bool VehicleEnableAngularVerticalAttraction { get; protected set; }
+
+        /// <summary>
+        /// Select vertical attraction algorithim. You need to look at the source.
+        /// (Directly from bulletsim).
+        /// </summary>
+        public int VehicleAngularVerticalAttractionAlgorithm { get; protected set; }
+
+        /// <summary>
+        /// This is a boolean read in that enables/disables vehicular angular
+        /// deflection effect within the PhysX plugin.
+        /// </summary>
+        public bool VehicleEnableAngularDeflection { get; protected set; }
+
+        /// <summary>
+        /// This is a boolean to enable/disable the vehicle angular banking effect.
+        /// </summary>
+        public bool VehicleEnableAngularBanking { get; protected set; }
+
+        /// <summary>
+        /// Factor to multiple angular banking timescale. Tune to increase realism.
+        /// (Directly from bulletsim)
+        /// </summary>
+        public float VehicleAngularBankingTimescaleFudge { get; protected set; }
+
         /// <summary>
         /// The scale factor to be used on height field height values. Height
         /// field values are stored as integers by PhysX, so a scale factor
@@ -202,7 +310,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         public float HeightFieldScaleFactor { get; protected set; }
 
         #endregion
-
 
         /// <summary>
         /// Initializes the varaibles with default values while waiting on the
@@ -216,6 +323,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             CPUMaxThreads = 1;
             MaxUpdatesPerFrame = 8192;
             MaxCollisionsPerFrame = 8192;
+
+            // Initialize all the properties using default values
+            // All default values are explained in the Initialize(...) method
             PhysicsTimeStep = 0.89f;
             DefaultFriction = 0.2f;
             DefaultDensity = 1000.0006836f;
@@ -237,6 +347,31 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             CrossingFailuresBeforeOutOfBounds = 5;
             BuoyancyDensity = 1000.0f;
             HeightFieldScaleFactor = 0.01f;
+
+            // Initialize all the properties using default values
+            // All default values are explained in the Initialize(...) method
+            VehicleFriction = 0.0f;
+            VehicleRestitution = 0.0f;
+            VehicleAngularDamping = 0.0f;
+
+            VehicleMinLinearVelocity = 0.01f;
+            VehicleMinLinearVelocitySquared = 0.0001f;
+
+            VehicleMaxLinearVelocity = 1000.0f;
+            VehicleMaxLinearVelocitySquared = VehicleMaxLinearVelocity * VehicleMaxLinearVelocity;
+
+            VehicleEnableLinearDeflection = true;
+            VehicleLinearDeflectionNotCollidingNoZ = true;
+            VehicleGroundGravityFudge = 0.2f;
+            VehicleEnableAngularVerticalAttraction = true;
+            VehicleAngularVerticalAttractionAlgorithm = 0;
+            VehicleEnableAngularDeflection = true;
+            VehicleEnableAngularBanking = true;
+            VehicleAngularBankingTimescaleFudge = 60.0f;
+
+            VehicleLinearFactor = new Vector3(1.0f, 1.0f, 1.0f);
+            VehicleAngularFactor = new Vector3(1.0f, 1.0f, 1.0f);
+            VehicleInertiaFactor = new Vector3(1.0f, 1.0f, 1.0f);
         }
 
 
@@ -318,6 +453,85 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             /// The default scale factor is 0.01
             HeightFieldScaleFactor = config.GetFloat("HeightFieldScaleFactor",
                0.01f);
+
+            // Read in the default friction value used for vehicles in the
+            // integrated PhysX plugin, the default value of 0.0f is used to
+            // match the Bullet plugin
+            VehicleFriction = config.GetFloat("VehicleFriction", 0.0f);
+
+            // Read in the default restitution value used for vehicles in the
+            // integrated PhysX plugin, the default value of 0.0f is used to
+            // match the Bullet plugin
+            VehicleRestitution = config.GetFloat("VehicleRestitution", 0.0f);
+
+            // Read in the default float value used for damping the angular velocity
+            // in the integrated PhysX plugin, the default value of 0.0f is used to
+            // match the Bullet plugin
+            VehicleAngularDamping = config.GetFloat("VehicleAngularDamping", 0.0f);
+
+            // Read in the default velocity value used for limiting velocity
+            // in the integrated PhysX plugin, the default value of 1000.0f is used
+            // to match the Bullet plugin
+            VehicleMaxLinearVelocity = config.GetFloat("VehicleMaxLinearVelocity", 1000.0f);
+            VehicleMaxLinearVelocitySquared = (VehicleMaxLinearVelocity * VehicleMaxLinearVelocity);
+
+            // Create and read in the default vector values for the vector of
+            // the inertia forces for vehicles within the PhysX plugin; the default
+            // overall vector value is (1.0f, 1.0f, 1.0f) to match the Bullet plugin
+            VehicleInertiaFactor = new Vector3(
+                config.GetFloat("VechileInertiaFactorX", 1.0f), 
+                config.GetFloat("VechileInertiaFactorY", 1.0f),
+                config.GetFloat("VechileInertiaFactorZ", 1.0f));
+
+            // Create and read in the default vector values for the vector of
+            // the angular forces for vehicles within the PhysX plugin; the default
+            // overall vector value is (1.0f, 1.0f, 1.0f) to match the Bullet plugin
+            VehicleAngularFactor = new Vector3(
+                config.GetFloat("VehicleAngularFactorX", 1.0f), 
+                config.GetFloat("VehicleAngularFactorY", 1.0f),
+                config.GetFloat("VehicleAngularFactorZ", 1.0f));
+
+            // Create and read in the default vector values for the vector of
+            // the angular forces for vehicles within the PhysX plugin; the default
+            // overall vector value is (1.0f, 1.0f, 1.0f) to match the Bullet plugin
+            VehicleLinearFactor = new Vector3(
+                config.GetFloat("VehicleLinearFactorX", 1.0f), 
+                config.GetFloat("VehicleLinearFactorY", 1.0f),
+                config.GetFloat("VehicleLinearFactorZ", 1.0f));
+
+            // Read in the default values for the various vehicle settings
+            VehicleEnableLinearDeflection = config.GetBoolean(
+                "VehicleEnableLinearDeflection", true);
+            
+            // Read in the default value for allowing or disallowing
+            // linear deflection, not colliding no z
+            VehicleLinearDeflectionNotCollidingNoZ = config.GetBoolean(
+                "VehicleLinearDeflectionNotCollidingNoZ", true);
+            
+            // Read in the default value for allowing or disallowing
+            // the angular vertical attraction
+            VehicleEnableAngularVerticalAttraction = config.GetBoolean(
+                "VehicleEnableAngularVerticalAttraction", true);
+            
+            // Read in the default value for indicating which of
+            // the proper vertical attraction algoritims to use
+            VehicleAngularVerticalAttractionAlgorithm = config.GetInt(
+                "VehicleAngularVerticalAttractionAlgorithm", 0);
+
+            // Read in the default value for allowing or disallowing
+            // angular deflection
+            VehicleEnableAngularDeflection = config.GetBoolean(
+                "VehicleEnableAngularDeflection", true);
+
+            // Read in the default value for allowing or disallowing
+            // angular banking
+            VehicleEnableAngularBanking = config.GetBoolean(
+                "VehicleEnableAngularBanking", true);
+
+            // Read in the default value for fudging the angular
+            // banking timescale by 
+            VehicleAngularBankingTimescaleFudge = config.GetFloat(
+                "VehicleAngularBankingTimescaleFudge", 60.0f);
         }
     }
 }
