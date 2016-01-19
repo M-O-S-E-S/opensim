@@ -479,7 +479,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // sure to set initialized to true
             m_pxScene.PhysX.CreateCharacterCapsule(LocalID, Name,
                 m_rawPosition, m_orientation, m_shapeID, Friction, Friction,
-                Restitution,  m_currentSize.Z / 2.0f, m_currentSize.Y, Density,
+                Restitution,  m_currentSize.Z / 2.0f, 
+                Math.Min(m_currentSize.X, m_currentSize.Y) / 2.0f, Density,
                 true);
 
             // Add a joint between this avatar and the ground plane in
@@ -2498,8 +2499,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     m_pxScene.PhysX.CreateCharacterCapsule(LocalID, Name,
                         m_rawPosition, m_orientation, m_shapeID, base.Friction,
                         base.Friction, base.Restitution,
-                        (m_currentSize.Z / 2.0f), m_currentSize.Y, Density,
-                        true);
+                        (m_currentSize.Z / 2.0f), 
+                        Math.Min(m_currentSize.X, m_currentSize.Y) / 2.0f, 
+                        Density, true);
 
                     // Now that the physical object has been created add the 
                     // joint holding up the avatar back to the avatar
