@@ -479,7 +479,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // sure to set initialized to true
             m_pxScene.PhysX.CreateCharacterCapsule(LocalID, Name,
                 m_rawPosition, m_orientation, m_shapeID, Friction, Friction,
-                Restitution,  m_currentSize.Z / 2.0f, 
+                Restitution,  ComputeAvatarHalfHeight(), 
                 Math.Min(m_currentSize.X, m_currentSize.Y) / 2.0f, Density,
                 true);
 
@@ -2499,7 +2499,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     m_pxScene.PhysX.CreateCharacterCapsule(LocalID, Name,
                         m_rawPosition, m_orientation, m_shapeID, base.Friction,
                         base.Friction, base.Restitution,
-                        (m_currentSize.Z / 2.0f), 
+                        ComputeAvatarHalfHeight(), 
                         Math.Min(m_currentSize.X, m_currentSize.Y) / 2.0f, 
                         Density, true);
 
@@ -2821,6 +2821,36 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             {
                 this.PrimAssetState = AssetState.FAILED_ASSET_FETCH;
             }
+        }
+
+        /// <summary>
+        /// Adjust the avatar height to account for how PhysX creates avatar
+        /// capsules. This will remove the spheres at the edges of the capsule
+        /// and then cut the height in half.
+        /// </summary>
+        private float ComputeAvatarHalfHeight()
+        {
+            float halfHeight;
+
+            // Remove the sphere from the capsule height and then cut the
+            // height in half 
+            halfHeight = (m_currentSize.Z - Math.Min(m_currentSize.X, 
+                m_currentSize.Y)) / 2.0f;
+
+            // There is a small amount of jitter for small characters, if this
+            // is the same as Bullet then the spheres are larger than the
+            // cylinder, so the height can't go below a minimum of 0.685f to
+            // prevent this
+            // NOTE: The reasoning for this has not been looked at yet, but
+            // will be soon
+            if (halfHeight < 0.685f)
+            {
+                halfHeight = 0.685f;
+            }
+
+            // Return the half height that will be used to construct the
+            // character capsule geometry
+            return halfHeight;
         }
 
         #endregion // Helper Methods
