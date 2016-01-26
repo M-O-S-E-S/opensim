@@ -2844,12 +2844,10 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             halfHeight = (m_currentSize.Z - Math.Min(m_currentSize.X, 
                 m_currentSize.Y)) / 2.0f;
 
-            // There is a small amount of jitter for small characters, if this
-            // is the same as Bullet then the spheres are larger than the
-            // cylinder, so the height can't go below a minimum of 0.685f to
-            // prevent this
-            // NOTE: The reasoning for this has not been looked at yet, but
-            // will be soon
+            // There is a noticable jitter for small scale characters, if the
+            // configuration options are enabled this will prevent the avatar
+            // from experiencing the jitter by keeping the physical capsule at
+            // a larger size than the avatar
             if (m_pxScene.UserConfig.AvatarJitterFix && halfHeight < 0.685f)
             {
                 halfHeight = 0.685f;
