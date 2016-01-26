@@ -2833,7 +2833,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <summary>
         /// Adjust the avatar height to account for how PhysX creates avatar
         /// capsules. This will remove the spheres at the edges of the capsule
-        /// and then cut the height in half.
+        /// and then cut the height in half, because OpenSim passes the height
+        /// with the radius included and PhysX wants the half height of the
+        /// cylinder and will add the radius of the spheres to the capsule.
         /// </summary>
         private float ComputeAvatarHalfHeight()
         {
