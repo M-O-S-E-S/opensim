@@ -2404,7 +2404,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
             // Initialise the return value with true until proven that all
             // collisions were handled
-            ret = false;
+            ret = true;
 
             // Check to see if there are currently no more collisions but
             // collisions were sent out during the last call; if so, then
@@ -2427,6 +2427,17 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 m_nextCollisionOkTime = m_pxScene.m_simulationTime + 
                     m_subscribedEventsTime;
 
+                // If a collision is being processed on this timestep the
+                // object should remain in the list of collisions so that
+                // OpenSim receives an empty event to signal the end of
+                // collisions for this object
+                if (m_collisionCollection.Count == 0)
+                {
+                    // There has been no collisions for two updates, so return
+                    // false to remove this object from the collision list
+                    ret = false;
+                }
+
                 // Send the collision data to OpenSim
                 base.SendCollisionUpdate(m_collisionCollection);
 
@@ -2437,10 +2448,6 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 // Create a new collision collection instance to prevent race
                 // conditions inside of OpenSim
                 m_collisionCollection = new CollisionEventUpdate();
-                
-                // Since all events have been sent change the return value to
-                // true
-                ret = true;
             }
 
             return ret;
@@ -2843,7 +2850,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // prevent this
             // NOTE: The reasoning for this has not been looked at yet, but
             // will be soon
-            if (halfHeight < 0.685f)
+            if (m_pxScene.UserConfig.AvatarJitterFix && halfHeight < 0.685f)
             {
                 halfHeight = 0.685f;
             }

@@ -144,6 +144,13 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         public float AvatarRestitution { get; protected set; }
 
         /// <summary>
+        /// Boolean value that determines if a small scale avatar should use a
+        /// larger physical capsule in order to prevent jitter on the avatar
+        /// movement.
+        /// </summary>
+        public bool AvatarJitterFix { get; protected set; }
+
+        /// <summary>
         /// The factor that the avatar velocity will be multiplied by when
         /// running.
         /// </summary>
@@ -338,6 +345,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             AvatarKineticFriction = 0.2f;
             AvatarDensity = 3500.0f;
             AvatarRestitution = 0.0f;
+            AvatarJitterFix = true;
             RunFactor = 1.3f;
             CollisionMargin = 0.04f;
             GroundPlaneHeight = -10.0f;
@@ -434,6 +442,10 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // Read in the default density used for avatars in the integrated
             // PhysX plugin
             AvatarDensity = config.GetFloat("AvatarDensity", 3500.0f);
+
+            // Read in whether the region should fudge the height of the avatar
+            // in order to provide smooth movement at smaller avatar scales
+            AvatarJitterFix = config.GetBoolean("AvatarJitterFix", true);
 
             // Read in the run factor that should be used for avatars that are
             // currently running
