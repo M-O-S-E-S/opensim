@@ -1739,16 +1739,25 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // velocity squared configuration value
             if (newVelocityLengthSq > PhysicsScene.UserConfig.VehicleMaxLinearVelocitySquared)
             {
+                Vector3 orig = VehicleVelocity; // DEBUG
+
                 // Divide the velocity by it's length and multiply it
                 // by the max linear velocity
                 VehicleVelocity /= VehicleVelocity.Length();
                 VehicleVelocity *= PhysicsScene.UserConfig.VehicleMaxLinearVelocity;
+
+                m_log.InfoFormat("{0}: ID = {1}, Original Velocity = {2}, " +
+                    "Final = {3}", LogHeader, PhysicsObject.LocalID, 
+                    orig, VehicleVelocity);
             }
             // Else if the the opposite is true, the squared length is too low
             else if (newVelocityLengthSq < PhysicsScene.UserConfig.VehicleMinLinearVelocitySquared)
             {
                 // Otherwise, set the vehicle velocity equal to zero
                 VehicleVelocity = Vector3.Zero;
+
+                m_log.InfoFormat("{0}: ID = {1}, Velocity = 0.0f", 
+                    PhysicsObject.LocalID, VehicleVelocity);
             }
         }
 
@@ -1774,11 +1783,13 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
             // Calculate and factor the friction factor into the linear motor
             // correction vector
-            frictionFactorV = ComputeFrictionFactor(m_linearFrictionTimescale, pTimestep);
+            frictionFactorV = ComputeFrictionFactor(m_linearFrictionTimescale, 
+                pTimestep);
             linearMotorCorrectionV -= (currentVelV * frictionFactorV);
             
             // Compute the overall velocity of the linear motor
-            linearMotorVelocityW = linearMotorCorrectionV * VehicleFrameOrientation;
+            linearMotorVelocityW = linearMotorCorrectionV * 
+                VehicleFrameOrientation;
 
             // If we are a ground vehicle, don't add any upward Z movement
             if ((m_flags & VehicleFlag.LIMIT_MOTOR_UP) != 0)
@@ -2011,6 +2022,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 if (position.Z >= (m_blockingEndPoint.Z - 1.0f))
                 {
                     position.Z -= positionChange.Z + 1.0f;
+                    changed = true;
                 }
 
                 // If the x or the y position is under zero
