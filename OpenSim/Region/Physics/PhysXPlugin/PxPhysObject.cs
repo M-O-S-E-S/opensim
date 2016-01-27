@@ -2431,7 +2431,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                 // object should remain in the list of collisions so that
                 // OpenSim receives an empty event to signal the end of
                 // collisions for this object
-                if (sendEndEvent)
+                if (m_collisionCollection.Count == 0 &&
+                    m_prevCollisionCollection.Count == 0)
                 {
                     // There has been no collisions for two updates, so return
                     // false to remove this object from the collision list
