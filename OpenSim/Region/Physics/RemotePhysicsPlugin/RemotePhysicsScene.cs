@@ -1082,6 +1082,8 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // Update the time it took to complete the time step
             lock (m_frameTimeLock)
             {
+                // Calculate the time it took to complete the time step in
+                // seconds
                 m_frameTime =
                     ((float) Util.EnvironmentTickCountSubtract(
                         m_frameTimeBegin)) / 1000.0f;

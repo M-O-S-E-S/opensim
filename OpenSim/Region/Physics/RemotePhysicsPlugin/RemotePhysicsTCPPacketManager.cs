@@ -676,6 +676,8 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 Update();
 
                 // Sleep the thread to ensure that it doesn't hog resources
+                // (maintain an update rate of apporximately 60 updates per
+                // second)
                 Thread.Sleep(17);
             }
         }
