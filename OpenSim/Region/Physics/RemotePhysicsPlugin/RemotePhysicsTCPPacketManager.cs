@@ -136,10 +136,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         protected static readonly uint m_defaultPacketLengthOffset = 8;
         
         /// <summary>
-        /// The maximum number of incoming packets that should be processed in
+        /// The maximum number of outgoing packets that should be processed in
         /// one update.
         /// </summary>
-        protected static readonly int m_maxPackets = 5000;
+        protected static int m_maxOutgoingPackets = 50;
 
         /// <summary>
         /// Flag indicating whether the manager has successfully connected to
@@ -676,7 +676,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 Update();
 
                 // Sleep the thread to ensure that it doesn't hog resources
-                Thread.Sleep(30);
+                Thread.Sleep(17);
             }
         }
 
@@ -703,7 +703,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             curPacket = null;
             int packetSentCount = 0;
             while (m_outgoingPackets.Count > 0 &&
-                packetSentCount < m_maxPackets)
+                packetSentCount < m_maxOutgoingPackets)
             {
                 // Indicate that the manager has already started sending data,
                 // and must wait before starting any additional send
