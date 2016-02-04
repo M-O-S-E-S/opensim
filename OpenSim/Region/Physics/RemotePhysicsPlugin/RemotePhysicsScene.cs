@@ -1077,6 +1077,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             }
         }
 
+        /// <summary>
+        /// Callback used by the remote physics engine to indicate that
+        /// it has completed a time step.
+        /// </summary>
         protected void TimeAdvanced()
         {
             // Update the time it took to complete the time step

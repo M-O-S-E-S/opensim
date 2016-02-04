@@ -407,6 +407,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         }
 
         /// <summary>
+        /// The size of the APPLogonReady structure in bytes.
+        /// </summary>
+        protected static readonly int m_APPLogonReadySize = m_APPHeaderSize +
+            sizeof(uint);
+
+        /// <summary>
         /// APP structure used to log off from the remote physics engine.
         /// </summary>
         protected struct APPLogoff
@@ -897,6 +903,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// </summary>
         public event ActorsCollidedHandler OnActorsCollidedEvent;
 
+        /// <summary>
+        /// The event that will be used to implement the TimeAdvanced event
+        /// of the messenger interface.
+        /// </summary>
         public event TimeAdvancedHandler OnTimeAdvancedEvent;
 
         /// <summary>
@@ -1076,6 +1086,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             m_currentMessageIndex++;
         }
 
+        /// <summary>
+        /// Sends a logoff message to the remote physics engine.
+        /// </summary>
+        /// <param name="simID">The unique ID of the simulation</param>
         public void Logoff(uint simID)
         {
             APPLogoff logoffMsg;
@@ -3674,24 +3688,22 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         }
 
         /// <summary>
-        /// Converts a byte array into a logon ready message.
+        /// Processes a byte array as a logon ready message and activates the
+        /// appropriate callback.
         /// </summary>
         /// <param name="byteArray">The byte array containing the logon ready
         /// message data</param>
         /// <param name="startIndex">The index in the "byteArray" at which to
         /// start processing</param>
-        /// <param name="logonReadyMsg">The resulting structure containing the
-        /// logon ready message</param>
         /// <returns>Flag indicating whether the logon ready message was
         /// extracted and converted successfully</returns>
         protected bool ProcessLogonReadyMessage(byte[] byteArray,
-            int startIndex, out APPLogonReady logonReadyMsg)
+            int startIndex)
         {
             ushort msgType;
             int offset;
-
-            // Allocate the logon ready message that will be the result
-            logonReadyMsg = new APPLogonReady();
+            uint simID;
+            LogonReadyHandler logonReadyHandler;
 
             // Ensure that this is a logon ready message by reading in the
             // message type field
@@ -3706,56 +3718,55 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 return false;
             }
 
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex, out logonReadyMsg.header))
+            // Make sure that the array length corresponds to the expected
+            // size of the messsage
+            if (byteArray.Length - startIndex < m_APPLogonReadySize)
             {
-                // This message cannot be processed, so warn the user and
-                // exit unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
+                // There is not enough data, so warn the user and exit
+                // unsuccessfully
+                m_log.WarnFormat("{0}: Insufficient packet data!", LogHeader);
                 return false;
             }
 
             // Convert the simulation ID
             offset = startIndex + m_APPHeaderSize;
-            logonReadyMsg.simID = (uint)IPAddress.NetworkToHostOrder(
+            simID = (uint)IPAddress.NetworkToHostOrder(
                 BitConverter.ToInt32(byteArray, offset));
+
+            // Get the subscribers that need to be notified of
+            // this logon ready message
+            logonReadyHandler = OnLogonReadyEvent;
+
+            // Check to see if there are any that are listening
+            // to the event
+            if (logonReadyHandler != null)
+            {
+                // Call the logon ready callback
+                logonReadyHandler(simID);
+            }
 
             // Indicate that the conversion was successful
             return true;
         }
 
         /// <summary>
-        /// Converts a byte array into a set static actor message.
+        /// Processes a byte array as a set static actor message and activates
+        /// the appropriate callback.
         /// </summary>
         /// <param name="byteArray">The byte array containing the set static
         /// actor message data</param>
         /// <param name="startIndex">The index in the "byteArray" at which to
         /// start processing</param>
-        /// <param name="staticActorMsg">The resulting structure containing
-        /// the set static actor message</param>
         /// <returns>Flag indicating whether the set static actor message was
         /// extracted and converted successfully</returns>
         protected bool ProcessSetStaticActorMessage(byte[] byteArray,
-            int startIndex, out APPSetStaticActor staticActorMsg)
+            int startIndex)
         {
-            ushort msgType;
             int offset;
-
-            // Allocate the static actor message that will be the result
-            staticActorMsg = new APPSetStaticActor();
-
-            // Ensure that this is a set static actor message by reading in the
-            // message type field
-            msgType = (ushort)IPAddress.NetworkToHostOrder(
-                BitConverter.ToInt16(byteArray, startIndex + 2));
-            if (msgType != (ushort)MessageType.SetStaticActor)
-            {
-                // This is not a set static actor message, so warn the user and
-                // exit unsuccessfully
-                m_log.WarnFormat("{0}: Invalid APPSetStaticActor message " +
-                    "received!", LogHeader);
-                return false;
-            }
+            UpdateStaticActorHandler staticActorHandler;
+            APPActorID actorID;
+            OpenMetaverse.Vector3 position;
+            OpenMetaverse.Quaternion orientation;
 
             // Make sure that the array length corresponds to the expected
             // size of the messsage
@@ -3767,84 +3778,66 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 return false;
             }
 
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex,
-                out staticActorMsg.header))
-            {
-                // This message cannot be processed, so warn the user and
-                // exit unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
-                return false;
-            }
-
             // Convert the actor ID
             offset = startIndex + m_APPHeaderSize;
-            ProcessActorID(byteArray, offset, out staticActorMsg.actor);
+            ProcessActorID(byteArray, offset, out actorID);
             offset += m_APPActorIDSize;
 
             // Convert the position vector portion into three floats
-            staticActorMsg.position.x = FloatToHostOrder(byteArray, offset);
+            position.X = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            staticActorMsg.position.y = FloatToHostOrder(byteArray, offset);
+            position.Y = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            staticActorMsg.position.z = FloatToHostOrder(byteArray, offset);
+            position.Z = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
 
             // Convert the orientation quaternion portion into four floats
-            staticActorMsg.orientation.x = FloatToHostOrder(byteArray, offset);
+            orientation.X = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            staticActorMsg.orientation.y = FloatToHostOrder(byteArray, offset);
+            orientation.Y = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            staticActorMsg.orientation.z = FloatToHostOrder(byteArray, offset);
+            orientation.Z = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            staticActorMsg.orientation.w = FloatToHostOrder(byteArray, offset);
+            orientation.W = FloatToHostOrder(byteArray, offset);
+
+            // Get the subscribers that need to be notified of
+            // this actor update
+            staticActorHandler = OnStaticActorUpdateEvent;
+
+            // Check to see if there are any that are
+            // listening to the event
+            if (staticActorHandler != null)
+            {
+                // Call the static actor update callback with
+                // the newly-received information
+                staticActorHandler(actorID.actorID, position, orientation);
+            }
 
             // Indicate that the conversion was sucessful
             return true;
         }
 
         /// <summary>
-        /// Converts a byte array into a set dynamic actor message.
+        /// Processes a byte array as a set dynamic actor message and activates
+        /// the appropriate callback.
         /// </summary>
         /// <param name="byteArray">The byte array containing the set dynamic
         /// actor message data</param>
         /// <param name="startIndex">The index in the "byteArray" at which to
         /// start processing</param>
-        /// <param name="dynamicActorMsg">The resulting structure containing
-        /// the set dynamic actor message. Will be null if method fails</param>
         /// <returns>Flag indicating whether the set dynamic actor message
         /// was extracted and converted successfully</returns>
         protected bool ProcessSetDynamicActorMessage(byte[] byteArray,
-            int startIndex, out APPSetDynamicActor dynamicActorMsg)
+            int startIndex)
         {
-            ushort msgType;
             int offset;
-
-            // Allocate the dynamic actor message that will be the result
-            dynamicActorMsg = new APPSetDynamicActor();
-
-            // Ensure that this is set dynamic actor message by reading the
-            // message type field
-            msgType = (ushort)IPAddress.NetworkToHostOrder(
-                BitConverter.ToInt16(byteArray, startIndex + 2));
-            if (msgType != (ushort)MessageType.SetDynamicActor)
-            {
-                // This is not a set dynamic actor message, so warn the user
-                // and exit unsuccessfully
-                m_log.WarnFormat("{0}: Invalid APPSetDynamicActor message " +
-                    "received!", LogHeader);
-                return false;
-            }
-
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex,
-                out dynamicActorMsg.header))
-            {
-                // This message cannot be processed, so warn the user
-                // exit unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
-                return false;
-            }
+            UpdateDynamicActorHandler dynamicActorHandler;
+            APPActorID actorID;
+            OpenMetaverse.Vector3 position;
+            OpenMetaverse.Quaternion orientation;
+            OpenMetaverse.Vector3 linearVelocity;
+            OpenMetaverse.Vector3 angularVelocity;
+            float gravityModifier;
             
             // Make sure that the array length corresponds to the expected
             // size of the messsage
@@ -3858,102 +3851,87 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
 
             // Convert the actor ID
             offset = startIndex + m_APPHeaderSize;
-            ProcessActorID(byteArray, offset, out dynamicActorMsg.actor);
+            ProcessActorID(byteArray, offset, out actorID);
             offset += m_APPActorIDSize;
 
             // Convert the position vector portion
-            dynamicActorMsg.position.x = FloatToHostOrder(byteArray, offset);
+            position.X = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            dynamicActorMsg.position.y = FloatToHostOrder(byteArray, offset);
+            position.Y = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            dynamicActorMsg.position.z = FloatToHostOrder(byteArray, offset);
+            position.Z = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
 
             // Convert the orientation quaternion portion
-            dynamicActorMsg.orientation.x = FloatToHostOrder(byteArray, offset);
+            orientation.X = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            dynamicActorMsg.orientation.y = FloatToHostOrder(byteArray, offset);
+            orientation.Y = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            dynamicActorMsg.orientation.z = FloatToHostOrder(byteArray, offset);
+            orientation.Z = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            dynamicActorMsg.orientation.w = FloatToHostOrder(byteArray, offset);
+            orientation.W = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
 
             // Convert the gravity modifier
-            dynamicActorMsg.gravityModifier = FloatToHostOrder(byteArray,
+            gravityModifier = FloatToHostOrder(byteArray,
                 offset);
             offset += sizeof(float);
 
             // Convert the linear velocity portion
-            dynamicActorMsg.linearVelocity.x = FloatToHostOrder(byteArray,
+            linearVelocity.X = FloatToHostOrder(byteArray,
                 offset);
             offset += sizeof(float);
-            dynamicActorMsg.linearVelocity.y = FloatToHostOrder(byteArray,
+            linearVelocity.Y = FloatToHostOrder(byteArray,
                 offset);
             offset += sizeof(float);
-            dynamicActorMsg.linearVelocity.z = FloatToHostOrder(byteArray,
+            linearVelocity.Z = FloatToHostOrder(byteArray,
                 offset);
             offset += sizeof(float);
 
             // Convert the angular velocity portion
-            dynamicActorMsg.angularVelocity.x = FloatToHostOrder(byteArray,
+            angularVelocity.X = FloatToHostOrder(byteArray,
                 offset);
             offset += sizeof(float);
-            dynamicActorMsg.angularVelocity.y = FloatToHostOrder(byteArray,
+            angularVelocity.Y = FloatToHostOrder(byteArray,
                 offset);
             offset += sizeof(float);
-            dynamicActorMsg.angularVelocity.z = FloatToHostOrder(byteArray,
+            angularVelocity.Z = FloatToHostOrder(byteArray,
                 offset);
+
+            // Get the subscribers that need to be notified of
+            // this actor update
+            dynamicActorHandler = OnDynamicActorUpdateEvent;
+
+            // Check to see if there are any that are listening to the event
+            if (dynamicActorHandler != null)
+            {
+                // Call the dynamic actor update callback with
+                // the newly-received information
+                dynamicActorHandler(actorID.actorID, position, orientation,
+                    linearVelocity, angularVelocity);
+            }
 
             // Indicate that the conversion was successful
             return true;
         }
 
         /// <summary>
-        /// Converts a byte array into an update dynamic actor mass message.
+        /// Processes a byte array as a update dynamic actor mass message and
+        /// activates the appropriate callback.
         /// </summary>
         /// <param name="byteArray">The byte array containing the update dynamic
         /// actor mass message data</param>
         /// <param name="startIndex">The index in the "byteArray" at which to
         /// start processing</param>
-        /// <param name="massMsg">The resulting structure containing
-        /// the update dynamic actor mass message.
-        /// Will be null if method fails</param>
         /// <returns>Flag indicating whether the update dynamic actor mass
         /// message was extracted and converted successfully</returns>
         protected bool ProcessUpdateDynamicActorMassMessage(byte[] byteArray,
-            int startIndex, out APPUpdateDynamicActorMass massMsg)
+            int startIndex)
         {
-            ushort msgType;
             int offset;
-
-            // Allocate the update dynamic actor mass message that will be the
-            // result
-            massMsg = new APPUpdateDynamicActorMass();
-
-            // Ensure that this is an update dynamic actor mass message by
-            // reading the message type field
-            msgType = (ushort)IPAddress.NetworkToHostOrder(
-                BitConverter.ToInt16(byteArray, startIndex + 2));
-            if (msgType != (ushort)MessageType.DynamicActorUpdateMass)
-            {
-                // This is not an update dynamic actor mass message, so warn
-                // the user and exit unsuccessfully
-                m_log.WarnFormat(
-                    "{0}: Invalid APPUpdateDynamicActorMass  message received!",
-                    LogHeader);
-                return false;
-            }
-
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex,
-                out massMsg.header))
-            {
-                // This message cannot be processed, so warn the user
-                // exit unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
-                return false;
-            }
+            UpdateDynamicActorMassHandler actorMassHandler;
+            APPActorID actorID;
+            float actorMass;
 
             // Make sure that the array length corresponds to the expected
             // size of the messsage
@@ -3967,60 +3945,49 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
 
             // Convert the actor ID
             offset = startIndex + m_APPHeaderSize;
-            ProcessActorID(byteArray, offset, out massMsg.actor);
+            ProcessActorID(byteArray, offset, out actorID);
             offset += m_APPActorIDSize;
 
             // Convert the mass
-            massMsg.mass = FloatToHostOrder(byteArray, offset);
+            actorMass = FloatToHostOrder(byteArray, offset);
+
+            // Get the subscribers that need to be notified of this actor mass
+            // update
+            actorMassHandler = OnDynamicActorMassUpdateEvent;
+
+            // Check to see if there are any that are listening to the event
+            if (actorMassHandler != null)
+            {
+                // Call the dynamic actor mass update callback
+                // with the newly-received information
+                actorMassHandler(actorID.actorID, actorMass);
+            }
 
             // Indicate that the conversion was successful
             return true;
         }
 
         /// <summary>
-        /// Converts a byte array into an error message.
+        /// Processes a byte array as an error message and activates the
+        /// appropriate callback.
         /// </summary>
         /// <param name="byteArray">Byte array containing the error message
         /// data</param>
         /// <param name="startIndex">The index in the "byteArray" at which to
         /// start processing</param>
-        /// <param name="errorMsg">The resulting structure</param>
-        /// <returns></returns>
-        protected bool ProcessErrorMessage(byte[] byteArray, int startIndex,
-            out APPError errorMsg)
+        /// <returns>Flag indicating whether the error message was extracted
+        /// and converted successfully</returns>
+        protected bool ProcessErrorMessage(byte[] byteArray, int startIndex)
         {
-            ushort msgType;
             int offset;
             byte[] tempArray;
-
-            // Allocate the error message that will be the result
-            errorMsg = new APPError();
-
-            // Ensure that this is an error message by reading the message
-            // type field
-            msgType = (ushort)IPAddress.NetworkToHostOrder(
-                BitConverter.ToInt16(byteArray, startIndex + 2));
-            if (msgType != (ushort)MessageType.Error)
-            {
-                // This is not a set dynamic actor message, so warn the user
-                // and exit unsuccessfully
-                m_log.WarnFormat("{0}: Invalid APPError message received!",
-                    LogHeader);
-                return false;
-            }
-
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex, out errorMsg.header))
-            {
-                // This message cannot be processed, so warn the user exit
-                // unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
-                return false;
-            }
+            ErrorCallbackHandler errorHandler;
+            string reasonString;
+            uint msgIndex;
 
             // Convert the index of the referred message
             offset = startIndex + m_APPHeaderSize;
-            errorMsg.msgIndex = (uint)IPAddress.NetworkToHostOrder(
+            msgIndex = (uint)IPAddress.NetworkToHostOrder(
                 BitConverter.ToInt32(byteArray, offset));
             offset += sizeof(uint);
 
@@ -4032,56 +3999,45 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // Extract the error reason string from the message byte array
             Buffer.BlockCopy(byteArray, offset, tempArray, 0, tempArray.Length);
 
-            // Converting the intermediate byte array into a character array
-            // and store it in the APPError structure
-            // Use default encoding for now
-            errorMsg.reason = System.Text.Encoding.Default.
-                GetString(tempArray).ToCharArray();
+            // Convert the byte array into a string using default encoding
+            reasonString = System.Text.Encoding.Default.GetString(tempArray);
+
+            // Get the subscribers that need to be notified of
+            // this error message
+            errorHandler = OnErrorEvent;
+
+            // Check to see if there are any that are
+            // listening to the event
+            if (errorHandler != null)
+            {
+                // Call the error callback with the newly-received information
+                errorHandler(msgIndex, reasonString);
+            }
 
             // Indicate that the conversion was successful
             return true;
         }
 
         /// <summary>
-        /// Converts a byte array into an actors collided message.
+        /// Processes a byte array as an actors collided message and activates
+        /// the appropriate callback.
         /// </summary>
         /// <param name="byteArray">Byte array containing the actors collided
         /// message data</param>
         /// <param name="startIndex">The index in the "byteArray" at which to
         /// start processing</param>
-        /// <param name="actorsCollidedMsg">The resulting structure</param>
-        /// <returns></returns>
+        /// <returns>Flag indicating whether the actors collided message was
+        /// extracted and converted successfully</returns>
         protected bool ProcessActorsCollidedMessage(byte[] byteArray,
-            int startIndex, out APPActorsCollided actorsCollidedMsg)
+            int startIndex)
         {
-            ushort msgType;
             int offset;
-
-            // Allocate the Actors Collided message that will be the result
-            actorsCollidedMsg = new APPActorsCollided();
-
-            // Ensure that this is an actors collided message by reading the
-            // message type field
-            msgType = (ushort)IPAddress.NetworkToHostOrder(
-                BitConverter.ToInt16(byteArray, startIndex + 2));
-            if (msgType != (short)MessageType.ActorsCollided)
-            {
-                // This is not an actors collided message, so warn the user
-                // and exit unsuccessfully
-                m_log.WarnFormat("{0}: Invalid APPActorsCollided message " +
-                    "received!", LogHeader);
-                return false;
-            }
-
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex,
-                out actorsCollidedMsg.header))
-            {
-                // This message cannot be processed, so warn the user exit
-                // unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
-                return false;
-            }
+            ActorsCollidedHandler collisionHandler;
+            APPActorID collidingActor;
+            APPActorID collidedActor;
+            OpenMetaverse.Vector3 contactPoint;
+            OpenMetaverse.Vector3 contactNormal;
+            float separation;
             
             // Make sure that the array length corresponds to the expected
             // size of the messsage
@@ -4095,75 +4051,66 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
 
             // Convert the first actor ID
             offset = startIndex + m_APPHeaderSize;
-            ProcessActorID(byteArray, offset,
-                out actorsCollidedMsg.collidingActor);
+            ProcessActorID(byteArray, offset, out collidingActor);
             offset += m_APPActorIDSize;
 
             // Convert the second actor ID
-            ProcessActorID(byteArray, offset,
-                out actorsCollidedMsg.collidedActor);
+            ProcessActorID(byteArray, offset, out collidedActor);
             offset += m_APPActorIDSize;
 
             // Convert the contact point
-            actorsCollidedMsg.contactPoint.x = FloatToHostOrder(byteArray,
-                offset);
+            contactPoint.X = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            actorsCollidedMsg.contactPoint.y = FloatToHostOrder(byteArray,
-                offset);
+            contactPoint.Y = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            actorsCollidedMsg.contactPoint.z = FloatToHostOrder(byteArray,
-                offset);
+            contactPoint.Z = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
 
             // Convert the contact normal
-            actorsCollidedMsg.contactNormal.x = FloatToHostOrder(byteArray,
-                offset);
+            contactNormal.X = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            actorsCollidedMsg.contactNormal.y = FloatToHostOrder(byteArray,
-                offset);
+            contactNormal.Y = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
-            actorsCollidedMsg.contactNormal.z = FloatToHostOrder(byteArray,
-                offset);
+            contactNormal.Z = FloatToHostOrder(byteArray, offset);
             offset += sizeof(float);
 
             // Convert the separation
-            actorsCollidedMsg.separation = FloatToHostOrder(byteArray, offset);
+            separation = FloatToHostOrder(byteArray, offset);
+
+            // Get the subscribers that need to be notified of
+            // this collision
+            collisionHandler = OnActorsCollidedEvent;
+
+            // Check to see if there are any that are
+            // listening to the event
+            if (collisionHandler != null)
+            {
+                // Call the actors collided callback with the
+                // newly-received information
+                collisionHandler(collidedActor.actorID, collidingActor.actorID,
+                    contactPoint, contactNormal, separation);
+            }
 
             // Indicate that the conversion was successful
             return true;
         }
 
+        /// <summary>
+        /// Processes a byte array as a time advanced message and activates
+        /// the appropriate callback.
+        /// </summary>
+        /// <param name="byteArray">Byte array containing the actors collided
+        /// message data</param>
+        /// <param name="startIndex">The index in the "byteArray" at which to
+        /// start processing</param>
+        /// <returns>Flag indicating whether the actors collided message was
+        /// extracted and converted successfully</returns>
         protected bool ProcessTimeAdvancedMessage(byte[] byteArray,
-            int startIndex, out APPTimeAdvanced timeAdvancedMsg)
+            int startIndex)
         {
-            ushort msgType;
             int offset;
-
-            // Allocate the time advanced message that will be the result
-            timeAdvancedMsg = new APPTimeAdvanced();
-
-            // Ensure that this is a time advanced message by reading the
-            // message type field
-            msgType = (ushort)IPAddress.NetworkToHostOrder(
-                BitConverter.ToInt16(byteArray, startIndex + 2));
-            if (msgType != (short)MessageType.TimeAdvanced)
-            {
-                // This is not a time advanced message, so warn the user
-                // and exit unsuccessfully
-                m_log.WarnFormat("{0}: Invalid APPTimeAdvanced message " +
-                    "received!", LogHeader);
-                return false;
-            }
-
-            // Attempt to convert the header
-            if (!ProcessHeader(byteArray, startIndex,
-                out timeAdvancedMsg.header))
-            {
-                // This message cannot be processed, so warn the user exit
-                // unsuccessfully
-                m_log.WarnFormat("{0}: Unable to parse APP Header!", LogHeader);
-                return false;
-            }
+            TimeAdvancedHandler timeAdvancedHandler;
+            uint simID;
 
             // Make sure that the array length corresponds to the expected
             // size of the messsage
@@ -4177,8 +4124,26 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
 
             // Convert the simulation ID
             offset = startIndex + m_APPHeaderSize;
-            timeAdvancedMsg.simID = (uint)IPAddress.NetworkToHostOrder(
+            simID = (uint)IPAddress.NetworkToHostOrder(
                 BitConverter.ToInt32(byteArray, offset));
+
+            // Check to see if this time advanced message refers
+            // to this simulation
+            if (simID == m_simulationID)
+            {
+                // Get the subscribers that need to be notified of this
+                // time advancement
+                timeAdvancedHandler = OnTimeAdvancedEvent;
+
+                // Check to see if there are any that are
+                // listening to the event
+                if (timeAdvancedHandler != null)
+                {
+                    // Call the time advanced callback with the
+                    // newly-received information
+                    timeAdvancedHandler();
+                }
+            }
 
             // Indicate that the conversion was successful
             return true;
@@ -4222,39 +4187,16 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         {
             byte[] currMessage;
             ushort currMessageType;
-            APPLogonReady logonReadyMsg;
             APPSetStaticActor staticActorMsg;
             APPSetDynamicActor dynamicActorMsg;
             APPUpdateDynamicActorMass massMsg;
             APPError errorMsg;
-            APPActorsCollided collisionMsg;
             APPTimeAdvanced timeAdvancedMsg;
-            LogonReadyHandler logonReadyHandler;
-            UpdateStaticActorHandler staticActorHandler;
-            UpdateDynamicActorHandler dynamicActorHandler;
-            UpdateDynamicActorMassHandler actorMassHandler;
-            ErrorCallbackHandler errorHandler;
-            ActorsCollidedHandler collisionHandler;
-            TimeAdvancedHandler timeAdvancedHandler;
-            OpenMetaverse.Vector3 msgPosition;
-            OpenMetaverse.Quaternion msgOrientation;
-            OpenMetaverse.Vector3 msgLinearVelocity;
-            OpenMetaverse.Vector3 msgAngularVelocity;
-            OpenMetaverse.Vector3 msgNormal;
-            string reasonString;
 
             // Check to see if the messenger has been initialized; if it has
             // not, exit out
             if (!m_isInitialized)
                 return;
-
-            // Initialize the data fields that will be used for storage of
-            // incoming data
-            msgPosition = OpenMetaverse.Vector3.Zero;
-            msgOrientation = OpenMetaverse.Quaternion.Identity;
-            msgLinearVelocity = OpenMetaverse.Vector3.Zero;
-            msgAngularVelocity = OpenMetaverse.Vector3.Zero;
-            msgNormal = OpenMetaverse.Vector3.Zero;
 
             // Check to see if the packet manager is not using its own internal
             // thread for updates
@@ -4276,7 +4218,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 // Figure out the type of the message, by converting the
                 // third and fourth bytes into an integer
                 currMessageType = (ushort)IPAddress.NetworkToHostOrder(
-                    BitConverter.ToInt16(currMessage, 0 + 2));
+                    BitConverter.ToInt16(currMessage, 2));
 
                 // Construct the proper message structure based on them
                 // message type; only look for messages that could be sent
@@ -4285,214 +4227,48 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessLogonReadyMessage(currMessage, 0,
-                        out logonReadyMsg))
-                    {
-                        // Get the subscribers that need to be notified of
-                        // this logon ready message
-                        logonReadyHandler = OnLogonReadyEvent;
-
-                        // Check to see if there are any that are listening
-                        // to the event;
-                        if (logonReadyHandler != null)
-                        {
-                            // Call the logon ready callback
-                            logonReadyHandler(logonReadyMsg.simID);
-                        }
-                    }
+                    ProcessLogonReadyMessage(currMessage, 0);
                 }
                 else if (currMessageType ==
                     (short)MessageType.SetStaticActor)
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessSetStaticActorMessage(currMessage,
-                        0, out staticActorMsg))
-                    {
-                        // Get the subscribers that need to be notified of
-                        // this actor update
-                        staticActorHandler = OnStaticActorUpdateEvent;
-
-                        // Check to see if there are any that are
-                        // listening to the event
-                        if (staticActorHandler != null)
-                        {
-                            // Convert the structure parameters into
-                            // OpenMetaverse types
-                            msgPosition.X = staticActorMsg.position.x;
-                            msgPosition.Y = staticActorMsg.position.y;
-                            msgPosition.Z = staticActorMsg.position.z;
-                            msgOrientation.X = staticActorMsg.orientation.x;
-                            msgOrientation.Y = staticActorMsg.orientation.y;
-                            msgOrientation.Z = staticActorMsg.orientation.z;
-                            msgOrientation.W = staticActorMsg.orientation.w;
-
-                            // Call the static actor update callback with
-                            // the newly-received information
-                            staticActorHandler(staticActorMsg.actor.actorID,
-                                msgPosition, msgOrientation);
-                        }
-                    }
+                    ProcessSetStaticActorMessage(currMessage, 0);
                 }
                 else if (currMessageType ==
                     (short)MessageType.SetDynamicActor)
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessSetDynamicActorMessage(currMessage,
-                        0, out dynamicActorMsg))
-                    {
-                        // Get the subscribers that need to be notified of
-                        // this actor update
-                        dynamicActorHandler = OnDynamicActorUpdateEvent;
-
-                        // Check to see if there are any that are
-                        // listening to the event
-                        if (dynamicActorHandler != null)
-                        {
-                            // Convert the structure parameters into
-                            // OpenMetaverse types
-                            msgPosition.X = dynamicActorMsg.position.x;
-                            msgPosition.Y = dynamicActorMsg.position.y;
-                            msgPosition.Z = dynamicActorMsg.position.z;
-                            msgOrientation.X =
-                                dynamicActorMsg.orientation.x;
-                            msgOrientation.Y =
-                                dynamicActorMsg.orientation.y;
-                            msgOrientation.Z =
-                                dynamicActorMsg.orientation.z;
-                            msgOrientation.W =
-                                dynamicActorMsg.orientation.w;
-                            msgLinearVelocity.X =
-                                dynamicActorMsg.linearVelocity.x;
-                            msgLinearVelocity.Y =
-                                dynamicActorMsg.linearVelocity.y;
-                            msgLinearVelocity.Z =
-                                dynamicActorMsg.linearVelocity.z;
-                            msgAngularVelocity.X =
-                                dynamicActorMsg.angularVelocity.x;
-                            msgAngularVelocity.Y =
-                                dynamicActorMsg.angularVelocity.y;
-                            msgAngularVelocity.Z =
-                                dynamicActorMsg.angularVelocity.z;
-
-                            // Call the dynamic actor update callback with
-                            // the newly-received information
-                            dynamicActorHandler(
-                                dynamicActorMsg.actor.actorID,
-                                msgPosition, msgOrientation,
-                                msgLinearVelocity, msgAngularVelocity);
-                        }
-                    }
+                    ProcessSetDynamicActorMessage(currMessage, 0);
                 }
                 else if (currMessageType ==
                     (short)MessageType.DynamicActorUpdateMass)
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessUpdateDynamicActorMassMessage(currMessage,
-                        0, out massMsg))
-                    {
-                        // Get the subscribers that need to be notified of
-                        // this actor mass update
-                        actorMassHandler = OnDynamicActorMassUpdateEvent;
-
-                        // Check to see if there are any that are listening
-                        // to the event
-                        if (actorMassHandler != null)
-                        {
-                            // Call the dynamic actor mass update callback
-                            // with the newly-received information
-                            actorMassHandler(massMsg.actor.actorID,
-                                massMsg.mass);
-                        }
-                    }
+                    ProcessUpdateDynamicActorMassMessage(currMessage, 0);
                 }
                 else if (currMessageType == (short)MessageType.Error)
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessErrorMessage(currMessage, 0, out errorMsg))
-                    {
-                        // Get the subscribers that need to be notified of
-                        // this error message
-                        errorHandler = OnErrorEvent;
-
-                        // Check to see if there are any that are
-                        // listening to the event
-                        if (errorHandler != null)
-                        {
-                            // Convert the reason array into a friendlier
-                            // string
-                            reasonString = new string(errorMsg.reason);
-
-                            // Call the error callback with the
-                            // newly-received information
-                            errorHandler(errorMsg.msgIndex, reasonString);
-                        }
-                    }
+                    ProcessErrorMessage(currMessage, 0);
                 }
                 else if (currMessageType ==
                     (short)MessageType.ActorsCollided)
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessActorsCollidedMessage(currMessage,
-                        0, out collisionMsg))
-                    {
-                        // Get the subscribers that need to be notified of
-                        // this collision
-                        collisionHandler = OnActorsCollidedEvent;
-
-                        // Check to see if there are any that are
-                        // listening to the event
-                        if (collisionHandler != null)
-                        {
-                            // Convert the structure members into
-                            // OpenMetaverse types
-                            msgPosition.X = collisionMsg.contactPoint.x;
-                            msgPosition.Y = collisionMsg.contactPoint.y;
-                            msgPosition.Z = collisionMsg.contactPoint.z;
-                            msgNormal.X = collisionMsg.contactNormal.x;
-                            msgNormal.Y = collisionMsg.contactNormal.y;
-                            msgNormal.Z = collisionMsg.contactNormal.z;
-
-                            // Call the actors collided callback with the
-                            // newly-received information
-                            collisionHandler(
-                                collisionMsg.collidedActor.actorID,
-                                collisionMsg.collidingActor.actorID,
-                                msgPosition, msgNormal,
-                                collisionMsg.separation);
-                        }
-                    }
+                    ProcessActorsCollidedMessage(currMessage, 0);
                 }
                 else if (currMessageType ==
                     (short) MessageType.TimeAdvanced)
                 {
                     // Attempt to convert the byte array into the
                     // appropriate message
-                    if (ProcessTimeAdvancedMessage(currMessage,
-                        0, out timeAdvancedMsg))
-                    {
-                        // Check to see if this time advanced message refers
-                        // to this simulation
-                        if (timeAdvancedMsg.simID == m_simulationID)
-                        {
-                            // Get the subscribers that need to be notified
-                            // of this time advancement
-                            timeAdvancedHandler = OnTimeAdvancedEvent;
-
-                            // Check to see if there are any that are
-                            // listening to the event
-                            if (timeAdvancedHandler != null)
-                            {
-                                // Call the time advanced callback with the
-                                // newly-received information
-                                timeAdvancedHandler();
-                            }
-                        }
-                    }
+                    ProcessTimeAdvancedMessage(currMessage, 0);
                 }
 
                 // Update the number of packets processed
