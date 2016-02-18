@@ -292,6 +292,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         protected RemotePhysicsTCPPacketManager m_remotePacketManager = null;
 
         /// <summary>
+        /// The packet manager that establishes and maintains an UDP connection
+        /// with the remote physics server.
+        /// </summary>
+        protected RemotePhysicsUDPPacketManager m_remoteUdpPacketManager = null;
+
+        /// <summary>
         /// Indicates the amount of time taken to compute and finalize the
         /// previous time advancement in seconds.
         /// </summary>
@@ -404,11 +410,16 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             m_remotePacketManager =
                 new RemotePhysicsTCPPacketManager(RemoteConfiguration);
 
+            // Create the packet manager that will be used for UDP
+            // communications with the remote physics server
+            m_remoteUdpPacketManager =
+                new RemotePhysicsUDPPacketManager(RemoteConfiguration);
+
             // Create the messaging system that will allow this scene to
             // communicate with the remote physics server
             m_remoteMessenger = new RemotePhysicsAPPMessenger();
             m_remoteMessenger.Initialize(RemoteConfiguration,
-                m_remotePacketManager);
+                m_remotePacketManager, m_remoteUdpPacketManager);
             RemoteMessenger = m_remoteMessenger;
 
             // Send the logon message
@@ -851,14 +862,20 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         {
             OpenMetaverse.Quaternion hfOrienation;
 
-            // Send a message that creates an actor for the height map
-            RemoteMessenger.SetStaticActor(m_terrainID,
-                OpenMetaverse.Vector3.Zero, OpenMetaverse.Quaternion.Identity);
-
-            // Detach old terrain shape and remove it, so that
-            // only the new terrain will be attached to the terrain actor
-            RemoteMessenger.DetachShape(m_terrainID, m_terrainShapeID);
-            RemoteMessenger.RemoveShape(m_terrainShapeID);
+            if (m_terrainBuilt)
+            {
+                // Detach old terrain shape and remove it, so that
+                // only the new terrain will be attached to the terrain actor
+                RemoteMessenger.DetachShape(m_terrainID, m_terrainShapeID);
+                RemoteMessenger.RemoveShape(m_terrainShapeID);
+            }
+            else
+            {
+                // Send a message that creates an actor for the height map
+                RemoteMessenger.CreateStaticActor(m_terrainID,
+                    OpenMetaverse.Vector3.Zero,
+                    OpenMetaverse.Quaternion.Identity);
+            }
 
             // Create the shape for the height map
             hfOrienation = OpenMetaverse.Quaternion.CreateFromEulers(
@@ -1012,6 +1029,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     avatar.UpdatePosition(position);
                     avatar.UpdateOrientation(orientation);
                     avatar.UpdateVelocity(linearVelocity);
+                    avatar.UpdateRotationalVelocity(angularVelocity);
 
                     // Hack for getting the simulator to update animations
                     avatar.SendCollisions();

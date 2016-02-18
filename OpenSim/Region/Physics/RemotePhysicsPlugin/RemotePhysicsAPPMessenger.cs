@@ -153,6 +153,73 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         #region Actor Messages
 
         /// <summary>
+        /// APP structure used to create a static actor (entity that
+        /// doesn't move).
+        /// </summary>
+        protected struct APPCreateStaticActor
+        {
+            public APPHeader header;
+            public APPActorID actor;
+            public APPVector position;
+            public APPQuat orientation;
+        }
+
+        /// <summary>
+        /// The size of the APPCreateStaticActor structure in bytes.
+        /// </summary>
+        protected static readonly int m_APPCreateStaticActorSize =
+            m_APPHeaderSize + m_APPActorIDSize + m_APPVectorSize +
+            m_APPQuatSize;
+ 
+        /// <summary>
+        /// An instance of the create static actor message that will be used for
+        /// sending out the corresponding APP message. This instance reduces
+        /// the amount of memory allocation required for this frequent message.
+        /// </summary>
+        protected APPCreateStaticActor m_createStaticActor;
+
+        /// <summary>
+        /// The lock object that will ensure that the create static actor
+        /// structure instance is thread-safe.
+        /// </summary>
+        protected object m_createStaticActorLock = new Object();
+
+        /// <summary>
+        /// APP structure used to create a dynamic actor (entity that moves).
+        /// </summary>
+        protected struct APPCreateDynamicActor
+        {
+            public APPHeader header;
+            public APPActorID actor;
+            public APPVector position;
+            public APPQuat orientation;
+            public float gravityModifier;
+            public APPVector linearVelocity;
+            public APPVector angularVelocity;
+        }
+
+        /// <summary>
+        /// The size of the APPCreateDynamicActor structure in bytes.
+        /// </summary>
+        protected static readonly int m_APPCreateDynamicActorSize =
+            m_APPHeaderSize + m_APPActorIDSize + m_APPVectorSize * 3 +
+            m_APPQuatSize + sizeof(float);
+ 
+        /// <summary>
+        /// An instance of the create dynamic actor message that will be
+        /// used for sending out the corresponding APP message. This instance
+        /// reduces the amount of memory allocation required for this
+        /// frequent message.
+        /// </summary>
+        protected APPCreateDynamicActor m_createDynamicActor;
+
+        /// <summary>
+        /// The lock object that will ensure that the create dynamic actor
+        /// structure instance is thread-safe.
+        /// </summary>
+        protected object m_createDynamicActorLock = new Object();
+
+        /// <summary>
         /// APP structure used to describe a static actor (entity that
         /// doesn't move).
         /// </summary>
@@ -803,16 +870,18 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             AdvanceTime = 14,
             TimeAdvanced = 15,
             SetWorld = 101,
-            SetStaticActor = 102,
-            SetDynamicActor = 103,
-            UpdateActorPosition = 104,
-            UpdateActorOrientation = 105,
-            DynamicActorUpdateGravityModifier = 106,
-            DynamicActorUpdateLinearVelocity = 107,
-            DynamicActorUpdateAngularVelocity = 108,
-            DynamicActorUpdateMass = 109,
-            GetDynamicActorMass = 110,
-            RemoveActor = 111,
+            CreateStaticActor = 102,
+            CreateDynamicActor = 103,
+            SetStaticActor = 104,
+            SetDynamicActor = 105,
+            UpdateActorPosition = 106,
+            UpdateActorOrientation = 107,
+            DynamicActorUpdateGravityModifier = 108,
+            DynamicActorUpdateLinearVelocity = 109,
+            DynamicActorUpdateAngularVelocity = 110,
+            DynamicActorUpdateMass = 111,
+            GetDynamicActorMass = 112,
+            RemoveActor = 113,
             AddJoint = 201,
             RemoveJoint = 202,
             AddSphere = 301,
@@ -836,6 +905,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// the remote physics engine.
         /// </summary>
         protected IRemotePhysicsPacketManager m_packetManager = null;
+
+        /// <summary>
+        /// The packet manager used to send and receive message to and from
+        /// the remote physics engine over UDP.
+        /// </summary>
+        protected IRemotePhysicsPacketManager m_udpPacketManager = null;
 
         /// <summary>
         /// Denotes the next free message index to be used. This is used to
@@ -962,12 +1037,17 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// messenger</param>
         /// <param name="packetManager">The packet manager that is used to send
         /// and receive messages to and from the remote physics engine</param>
+        /// <param name="udpPacketManager">The packet manager that is used to
+        /// send and receive messages to and from the remote physics engine
+        /// over UDP</param>
         public void Initialize(RemotePhysicsConfiguration config,
-            IRemotePhysicsPacketManager packetManager)
+            IRemotePhysicsPacketManager packetManager,
+            IRemotePhysicsPacketManager udpPacketManager)
         {
-            // Initialize the packet manager that will allow this messenger
+            // Initialize the packet managers that will allow this messenger
             // to communicate with the remote manager
             m_packetManager = packetManager;
+            m_udpPacketManager = udpPacketManager;
 
             // Reset the indexing that should be used for messages sent
             // from this messenger
@@ -992,6 +1072,17 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
 
             // Initialize the static actor message structure that will be used
             // to reduce allocations when sending out the message
+            m_createStaticActor = new APPCreateStaticActor();
+            m_createStaticActor.header = new APPHeader();
+            m_createStaticActor.actor = new APPActorID();
+            m_createStaticActor.position = new APPVector();
+            m_createStaticActor.orientation = new APPQuat();
+            m_createDynamicActor = new APPCreateDynamicActor();
+            m_createDynamicActor.header = new APPHeader();
+            m_createDynamicActor.position = new APPVector();
+            m_createDynamicActor.orientation = new APPQuat();
+            m_createDynamicActor.linearVelocity = new APPVector();
+            m_createDynamicActor.angularVelocity = new APPVector();
             m_setStaticActor = new APPSetStaticActor();
             m_setStaticActor.header = new APPHeader();
             m_setStaticActor.actor = new APPActorID();
@@ -1248,6 +1339,187 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         }
 
         /// <summary>
+        /// Creates a static actor in the remote physics engine.
+        /// </summary>
+        /// <param name="actorID">The unique ID of the actor</param>
+        /// <param name="position">The position of the actor</param>
+        /// <param name="orientation">The orientation of the actor</param>
+        public void CreateStaticActor(uint actorID,
+            OpenMetaverse.Vector3 position,
+            OpenMetaverse.Quaternion orientation)
+        {
+            byte[] staticActorArray;
+            int offset;
+            ushort tempValue;
+
+            // Check to see if the messenger has been initialized; if it has
+            // not, exit out
+            if (!m_isInitialized)
+                return;
+
+            // Ensure that access to the set static actor structure is
+            // thread-safe
+            lock (m_createStaticActorLock)
+            {
+                // Initialize the header with the message type
+                tempValue = (ushort)MessageType.CreateStaticActor;
+                m_createStaticActor.header.msgType = (ushort)IPAddress.
+                    HostToNetworkOrder((short)tempValue);
+ 
+                // Initialize the rest of the header
+                InitializeAPPHeader(ref m_createStaticActor.header,
+                    (uint)m_APPCreateStaticActorSize);
+ 
+                // Set the body of the message using the given parameters
+                m_createStaticActor.actor.actorID =
+                    (uint)IPAddress.HostToNetworkOrder((int)actorID);
+                m_createStaticActor.actor.simID =
+                    (uint)IPAddress.HostToNetworkOrder((int)m_simulationID);
+                m_createStaticActor.position.x = position.X;
+                m_createStaticActor.position.y = position.Y;
+                m_createStaticActor.position.z = position.Z;
+                m_createStaticActor.orientation.x = orientation.X;
+                m_createStaticActor.orientation.y = orientation.Y;
+                m_createStaticActor.orientation.z = orientation.Z;
+                m_createStaticActor.orientation.w = orientation.W;
+ 
+                // Convert the message to a byte array, so that it can be sent
+                // to the remote physics engine
+                // Start by allocating the byte array
+                staticActorArray = new byte[m_APPCreateStaticActorSize];
+ 
+                // Convert the header to its byte array representation
+                ConvertHeaderToBytes(m_createStaticActor.header,
+                   ref staticActorArray, 0);
+ 
+                // Convert the actor ID
+                offset = m_APPHeaderSize;
+                offset += ConvertAPPActorIDToBytes(m_createStaticActor.actor,
+                    ref staticActorArray, offset);
+ 
+                // Convert the position and orientation
+                offset += ConvertAPPVectorToBytes(m_createStaticActor.position,
+                    ref staticActorArray, offset);
+                offset += ConvertAPPQuaternionToBytes(
+                    m_createStaticActor.orientation, ref staticActorArray,
+                    offset);
+            }
+
+            // Now that the byte array has been constructed, send it to the
+            // remote physics engine
+            m_packetManager.SendPacket(staticActorArray);
+
+            // Increment the message index now that a message has been sent
+            m_currentMessageIndex++;
+        }
+
+        /// <summary>
+        /// Creates a dynamic actor in the remote physics engine.
+        /// </summary>
+        /// <param name="actorID">The unique ID of the actor</param>
+        /// <param name="position">The position of the actor</param>
+        /// <param name="orientation">The orientation of the actor</param>
+        /// <param name="gravityModifier">The multiplier for the gravity
+        /// acting on this object</param>
+        /// <param name="linearVelocity">The linear velocity of the actor
+        /// (in meters/second)</param>
+        /// <param name="angularVelocity">The angular velocity of the actor
+        /// (in meters/second)</param>
+        public void CreateDynamicActor(uint actorID,
+            OpenMetaverse.Vector3 position,
+            OpenMetaverse.Quaternion orientation, float gravityModifier,
+            OpenMetaverse.Vector3 linearVelocity,
+            OpenMetaverse.Vector3 angularVelocity)
+        {
+            byte[] dynamicActorArray;
+            ushort tempValue;
+            int offset;
+
+            // Check to see if the messenger has been initialized; if it has
+            // not, exit out
+            if (!m_isInitialized)
+                return;
+
+            // Ensure that access to the set dynamic actor structure is
+            // thread-safe
+            lock (m_createDynamicActorLock)
+            {
+                // Initialize the header with the message type
+                tempValue = (ushort)MessageType.CreateDynamicActor;
+                m_createDynamicActor.header.msgType =
+                    (ushort)IPAddress.HostToNetworkOrder((short)tempValue);
+ 
+                // Initialize the rest of the header
+                InitializeAPPHeader(ref m_createDynamicActor.header,
+                    (uint)m_APPCreateDynamicActorSize);
+ 
+                // Set the body of the message using the given parameters
+                m_createDynamicActor.actor.actorID =
+                    (uint)IPAddress.HostToNetworkOrder((int)actorID);
+                m_createDynamicActor.actor.simID =
+                    (uint)IPAddress.HostToNetworkOrder((int)m_simulationID);
+                m_createDynamicActor.position.x = position.X;
+                m_createDynamicActor.position.y = position.Y;
+                m_createDynamicActor.position.z = position.Z;
+                m_createDynamicActor.orientation.x = orientation.X;
+                m_createDynamicActor.orientation.y = orientation.Y;
+                m_createDynamicActor.orientation.z = orientation.Z;
+                m_createDynamicActor.orientation.w = orientation.W;
+                m_createDynamicActor.gravityModifier = gravityModifier;
+                m_createDynamicActor.linearVelocity.x = linearVelocity.X;
+                m_createDynamicActor.linearVelocity.y = linearVelocity.Y;
+                m_createDynamicActor.linearVelocity.z = linearVelocity.Z;
+                m_createDynamicActor.angularVelocity.x = angularVelocity.X;
+                m_createDynamicActor.angularVelocity.y = angularVelocity.Y;
+                m_createDynamicActor.angularVelocity.z = angularVelocity.Z;
+ 
+                // Convert the message into a byte array, so that it can
+                // be sent to the remote physics engine
+                // Start by allocating the array
+                dynamicActorArray = new byte[m_APPCreateDynamicActorSize];
+ 
+                // Convert the header to its byte array representation
+                ConvertHeaderToBytes(m_createDynamicActor.header,
+                    ref dynamicActorArray, 0);
+ 
+                // Convert the actor ID
+                offset = m_APPHeaderSize;
+                offset += ConvertAPPActorIDToBytes(m_createDynamicActor.actor,
+                    ref dynamicActorArray, offset);
+ 
+                // Convert the position
+                offset += ConvertAPPVectorToBytes(m_createDynamicActor.position,
+                    ref dynamicActorArray, offset);
+ 
+                // Convert the orientation
+                offset += ConvertAPPQuaternionToBytes(
+                    m_createDynamicActor.orientation,
+                    ref dynamicActorArray, offset);
+ 
+                // Convert the gravity modifier
+                FloatToNetworkOrder(m_createDynamicActor.gravityModifier,
+                    ref dynamicActorArray, offset);
+                offset += sizeof(float);
+ 
+                // Convert the linear and angular velocities
+                offset += ConvertAPPVectorToBytes(
+                    m_createDynamicActor.linearVelocity,
+                    ref dynamicActorArray, offset);
+                offset += ConvertAPPVectorToBytes(
+                    m_createDynamicActor.angularVelocity,
+                    ref dynamicActorArray, offset);
+            }
+
+            // Now that the byte array has been constructed, send it to the
+            // remote physics engine
+            m_packetManager.SendPacket(dynamicActorArray);
+
+            // Increment the message index now that a message has been sent
+            m_currentMessageIndex++;
+        }
+
+
+        /// <summary>
         /// Updates the state of a static actor in the remote physics engine.
         /// </summary>
         /// <param name="actorID">The unique ID of the actor</param>
@@ -1256,7 +1528,6 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         public void SetStaticActor(uint actorID, OpenMetaverse.Vector3 position,
             OpenMetaverse.Quaternion orientation)
         {
-            APPSetStaticActor staticActorMsg;
             byte[] staticActorArray;
             int offset;
             ushort tempValue;
@@ -1280,23 +1551,20 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     (uint)m_APPSetStaticActorSize);
  
                 // Set the body of the message using the given parameters
-                //m_setStaticActor.actor = new APPActorID();
                 m_setStaticActor.actor.actorID =
                     (uint)IPAddress.HostToNetworkOrder((int)actorID);
                 m_setStaticActor.actor.simID =
                     (uint)IPAddress.HostToNetworkOrder((int)m_simulationID);
-                //m_setStaticActor.position = new APPVector();
                 m_setStaticActor.position.x = position.X;
                 m_setStaticActor.position.y = position.Y;
                 m_setStaticActor.position.z = position.Z;
-                //m_setStaticActor.orientation = new APPQuat();
                 m_setStaticActor.orientation.x = orientation.X;
                 m_setStaticActor.orientation.y = orientation.Y;
                 m_setStaticActor.orientation.z = orientation.Z;
                 m_setStaticActor.orientation.w = orientation.W;
  
-                // Convert the message to a byte array, so that it can be sent to
-                // the remote physics engine
+                // Convert the message to a byte array, so that it can be sent
+                // to the remote physics engine
                 // Start by allocating the byte array
                 staticActorArray = new byte[m_APPSetStaticActorSize];
  
@@ -4186,12 +4454,6 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         public void Update()
         {
             byte[] currMessage;
-            ushort currMessageType;
-            APPSetStaticActor staticActorMsg;
-            APPSetDynamicActor dynamicActorMsg;
-            APPUpdateDynamicActorMass massMsg;
-            APPError errorMsg;
-            APPTimeAdvanced timeAdvancedMsg;
 
             // Check to see if the messenger has been initialized; if it has
             // not, exit out
@@ -4202,11 +4464,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // thread for updates
             if (!m_packetManagerInternalThread)
             {
-                // Update the packet manager
+                // Update the packet managers
                 m_packetManager.Update();
+                m_udpPacketManager.Update();
             }
 
-            // Keep processing messages till the packet manager has no more
+            // Keep processing messages till the TCP packet manager has no more
             // incoming packets
             int packetCount = 0;
             while (m_packetManager.HasIncomingPacket() &&
@@ -4215,64 +4478,91 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 // Get the next incoming packet from the packet manager
                 currMessage = m_packetManager.GetIncomingPacket();
 
-                // Figure out the type of the message, by converting the
-                // third and fourth bytes into an integer
-                currMessageType = (ushort)IPAddress.NetworkToHostOrder(
-                    BitConverter.ToInt16(currMessage, 2));
-
-                // Construct the proper message structure based on them
-                // message type; only look for messages that could be sent
-                // back from the remote physics engine
-                if (currMessageType == (short)MessageType.LogonReady)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessLogonReadyMessage(currMessage, 0);
-                }
-                else if (currMessageType ==
-                    (short)MessageType.SetStaticActor)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessSetStaticActorMessage(currMessage, 0);
-                }
-                else if (currMessageType ==
-                    (short)MessageType.SetDynamicActor)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessSetDynamicActorMessage(currMessage, 0);
-                }
-                else if (currMessageType ==
-                    (short)MessageType.DynamicActorUpdateMass)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessUpdateDynamicActorMassMessage(currMessage, 0);
-                }
-                else if (currMessageType == (short)MessageType.Error)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessErrorMessage(currMessage, 0);
-                }
-                else if (currMessageType ==
-                    (short)MessageType.ActorsCollided)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessActorsCollidedMessage(currMessage, 0);
-                }
-                else if (currMessageType ==
-                    (short) MessageType.TimeAdvanced)
-                {
-                    // Attempt to convert the byte array into the
-                    // appropriate message
-                    ProcessTimeAdvancedMessage(currMessage, 0);
-                }
+                // Process the message
+                ProcessMessage(currMessage);
 
                 // Update the number of packets processed
                 packetCount++;
+            }
+
+            // Now process messages from the UDP packet manager
+            packetCount = 0;
+            while (m_udpPacketManager.HasIncomingPacket() &&
+                packetCount < m_maxPackets)
+            {
+                // Get the next incoming packet from the UDP packet manager
+                currMessage = m_udpPacketManager.GetIncomingPacket();
+
+                // Process the message
+                ProcessMessage(currMessage);
+
+                // Update the number of packets processed
+                packetCount++;
+            }
+        }
+
+        /// <summary>
+        /// Helper method that processes a single message from the remote
+        /// physics engine.
+        /// </summary>
+        protected void ProcessMessage(byte[] message)
+        {
+            ushort msgType;
+
+            // Figure out the type of the message, by converting the
+            // third and fourth bytes into an integer
+            msgType = (ushort)IPAddress.NetworkToHostOrder(
+                BitConverter.ToInt16(message, 2));
+
+            // Construct the proper message structure based on them
+            // message type; only look for messages that could be sent
+            // back from the remote physics engine
+            if (msgType == (short)MessageType.LogonReady)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessLogonReadyMessage(message, 0);
+            }
+            else if (msgType ==
+                (short)MessageType.SetStaticActor)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessSetStaticActorMessage(message, 0);
+            }
+            else if (msgType ==
+                (short)MessageType.SetDynamicActor)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessSetDynamicActorMessage(message, 0);
+            }
+            else if (msgType ==
+                (short)MessageType.DynamicActorUpdateMass)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessUpdateDynamicActorMassMessage(message, 0);
+            }
+            else if (msgType == (short)MessageType.Error)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessErrorMessage(message, 0);
+            }
+            else if (msgType ==
+                (short)MessageType.ActorsCollided)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessActorsCollidedMessage(message, 0);
+            }
+            else if (msgType ==
+                (short) MessageType.TimeAdvanced)
+            {
+                // Attempt to convert the byte array into the
+                // appropriate message
+                ProcessTimeAdvancedMessage(message, 0);
             }
         }
 

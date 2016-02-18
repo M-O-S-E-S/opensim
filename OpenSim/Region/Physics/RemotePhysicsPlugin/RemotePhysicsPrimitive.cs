@@ -931,14 +931,14 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 if (!IsStatic)
                 {
                     // Re-add the primitive as a dynamic actor
-                    ParentScene.RemoteMessenger.SetDynamicActor(
+                    ParentScene.RemoteMessenger.CreateDynamicActor(
                         LocalID, Position, Orientation, 1.0f,
                         Velocity, m_rotationalVelocity);
                 }
                 else
                 {
                     // Re-add the primitive as a static actor
-                    ParentScene.RemoteMessenger.SetStaticActor(
+                    ParentScene.RemoteMessenger.CreateStaticActor(
                         LocalID, Position, Orientation);
                 }
 

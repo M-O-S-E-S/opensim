@@ -92,8 +92,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// messenger</param>
         /// <param name="packetManager">The packet manager that the messenger
         /// will use to communicate with the remote server</param>
+        /// <param name="udpPacketManager">The packet manager that the messenger
+        /// will use to communicate with the remote physics engine over
+        /// UDP</param>
         void Initialize(RemotePhysicsConfiguration config,  
-            IRemotePhysicsPacketManager packetManager);
+            IRemotePhysicsPacketManager packetManager,
+            IRemotePhysicsPacketManager udpPacketManager);
 
         /// <summary>
         /// Log on to the remote physics engine.
@@ -129,6 +133,34 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             float staticFriction, float kineticFriction, float restitution,
             float collisionMargin, uint groundPlaneID, float groundPlaneHeight,
             OpenMetaverse.Vector3 groundPlaneNormal);
+
+        /// <summary>
+        /// Creates a new static actor in the remote physics engine.
+        /// </summary>
+        /// <param name="actorID">The unique ID of the actor that is being
+        /// created</param>
+        /// <param name="position">The position of the actor</param>
+        /// <param name="orientation">The orientation of the actor</param>
+        void CreateStaticActor(uint actorID, OpenMetaverse.Vector3 position,
+            OpenMetaverse.Quaternion orientation);
+
+        /// <summary>
+        /// Creates a new dynamic actor in the remote physics engine.
+        /// </summary>
+        /// <param name="actorID">The unique ID of the actor that is being
+        /// created</param>
+        /// <param name="position">The position of the actor</param>
+        /// <param name="orientation">The orientation of the actor</param>
+        /// <param name="gravityModifier">The gravity multiplier affecting
+        /// this actor</param>
+        /// <param name="linearVelocity">The linear velocity of this
+        /// actor</param>
+        /// <param name="angularVelocity">The angular velocity of this
+        /// actor</param>
+        void CreateDynamicActor(uint actorID, OpenMetaverse.Vector3 position, 
+            OpenMetaverse.Quaternion orientation, float gravityModifier, 
+            OpenMetaverse.Vector3 linearVelocity,
+            OpenMetaverse.Vector3 angularVelocity);
 
         /// <summary>
         /// Create a new static actor or update the state of an existing
