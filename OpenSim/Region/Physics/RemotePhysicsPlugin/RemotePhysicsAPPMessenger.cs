@@ -1172,6 +1172,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // Now that the byte array has been constructed, send it to
             // the remote physics engine
             m_packetManager.SendPacket(logonArray);
+            m_udpPacketManager.SendPacket(logonArray);
 
             // Increment the message index, now that the message has been sent
             m_currentMessageIndex++;

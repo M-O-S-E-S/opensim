@@ -256,6 +256,18 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         public uint m_nextJointId = 100;
 
         /// <summary>
+        /// The list of objects that have been updated during the current
+        /// simulation step.
+        /// </summary>
+        protected List<RemotePhysicsObject> m_updatedObjects;
+
+        /// <summary>
+        /// The list of objects that were updated during the last simulation
+        /// step.
+        /// </summary>
+        protected List<RemotePhysicsObject> m_lastUpdatedObjects;
+
+        /// <summary>
         /// A library of various material archetypes and their physical
         /// properties.
         /// </summary>
@@ -421,6 +433,11 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             m_remoteMessenger.Initialize(RemoteConfiguration,
                 m_remotePacketManager, m_remoteUdpPacketManager);
             RemoteMessenger = m_remoteMessenger;
+
+            // Initialize the lists that will track which objects were updated
+            // duing this and the last step
+            m_updatedObjects = new List<RemotePhysicsObject>();
+            m_lastUpdatedObjects = new List<RemotePhysicsObject>();
 
             // Send the logon message
             m_remoteMessenger.Logon(RemoteConfiguration.SimulationID,
@@ -1059,6 +1076,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                // Update the position and orientation of the 
                prim.UpdatePosition(position);
                prim.UpdateOrientation(orientation);
+               prim.UpdateVelocity(linearVelocity);
 
                // Hack for getting the simulator to update animations
                prim.SendCollisions();
@@ -1066,6 +1084,11 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                // Send an update of the physical properties of the primitive
                // to the simulator
                prim.RequestPhysicsterseUpdate();
+
+               // Indicate that this object has been updated during the
+               // current step
+               m_updatedObjects.Add(prim);
+               m_lastUpdatedObjects.Remove(prim);
             }
         }
 
@@ -1101,6 +1124,8 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// </summary>
         protected void TimeAdvanced()
         {
+            RemotePhysicsPrimitive prim;
+
             // Update the time it took to complete the time step
             lock (m_frameTimeLock)
             {
@@ -1109,6 +1134,33 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_frameTime =
                     ((float) Util.EnvironmentTickCountSubtract(
                         m_frameTimeBegin)) / 1000.0f;
+            }
+
+            // Go through each of the objects that were not updated during this
+            // step, but were updated during the previous step
+            foreach (RemotePhysicsObject obj in m_lastUpdatedObjects)
+            {
+               // Zero out the velocities of the object to prevent extraneous
+               // dead reckoning
+               prim = obj as RemotePhysicsPrimitive;
+               prim.UpdateVelocity(OpenMetaverse.Vector3.Zero);
+               prim.UpdateRotationalVelocity(OpenMetaverse.Vector3.Zero);
+
+               // Send an update of the physical properties of the primitive
+               // to the simulator
+               prim.RequestPhysicsterseUpdate();
+            }
+
+            // Clear the list of objects that were updated during the previous
+            // step
+            m_lastUpdatedObjects.Clear();
+
+            // Add all the objects that were updated during the current step
+            // into the list of objects that were updated during the previous
+            // step, because the current step is now complete
+            foreach (RemotePhysicsObject obj in m_updatedObjects)
+            {
+                m_lastUpdatedObjects.Add(obj);
             }
         }
 

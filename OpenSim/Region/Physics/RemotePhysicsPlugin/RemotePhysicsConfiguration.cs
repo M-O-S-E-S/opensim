@@ -154,7 +154,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             TerrainFriction = 0.2f;
             TerrainRestitution = 0.0f;
             TerrainCollisionMargin = 0.04f;
-            PacketManagerInternalThread = false;
+            PacketManagerInternalThread = true;
             MessengerInternalThread = true;
             CrossingFailuresBeforeOutOfBounds = 5;
         }

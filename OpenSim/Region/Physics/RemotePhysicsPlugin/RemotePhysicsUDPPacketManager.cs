@@ -69,8 +69,6 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// </summary>
         protected IPEndPoint m_remoteHost = null;
 
-        protected IPEndPoint m_localEP = null;
-
         /// <summary>
         /// Indicates whether the internal update thread should stop
         /// (if an internal thread is being used).
@@ -103,6 +101,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         protected Thread m_updateThread;
 
         /// <summary>
+        /// Flag that indicates that the previous receive operation has
+        /// completed and the manager is ready to start a new receive operation.
+        /// </summary>
+        protected bool m_receiveReady = true;
+
+        /// <summary>
         /// Constructor of the UDP packet manager.
         /// </summary>
         public RemotePhysicsUDPPacketManager(RemotePhysicsConfiguration config)
@@ -113,12 +117,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // and port
             remoteAddress = IPAddress.Parse(config.RemoteAddress);
             m_remoteHost = new IPEndPoint(remoteAddress, config.RemotePort);
-            m_localEP = new IPEndPoint(IPAddress.Parse("127.0.0.1"),
-                config.RemotePort);
 
             // Create the UDP client that will be used to communicate with the
             // remote physics engine
-            m_udpClient = new UdpClient(config.RemotePort);
+            m_udpClient = new UdpClient();
 
             // Check to see if the configuration states whether this packet
             // manager should use its own internal update thread
@@ -144,11 +146,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // Configure the connection point using the given address and port
             engineAddress = IPAddress.Parse(remoteAddress);
             m_remoteHost = new IPEndPoint(engineAddress, remotePort);
-            m_localEP = new IPEndPoint(IPAddress.Any, remotePort);
 
             // Create the UDP client that will be used to communicate with the
             // remote physics engine
-            m_udpClient = new UdpClient(m_localEP);
+            m_udpClient = new UdpClient();
 
             // Check to see if the configuration states whether this packet
             // manager should use its own internal update thread
@@ -256,6 +257,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             while (!m_stopUpdates)
             {
                 Update();
+
+                // Sleep the thread for 5 milliseconds, so that it doesn't
+                // eat up too many resources
+                Thread.Sleep(5);
             }
         }
 
@@ -282,7 +287,6 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     m_udpClient.BeginSend(currPacket, currPacket.Length,
                         m_remoteHost,
                         new AsyncCallback(SendCallback), m_udpClient);
-                    //m_udpClient.Send(currPacket, currPacket.Length);
                 }
                 catch (SocketException socketException)
                 {
@@ -293,28 +297,24 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 }
             }
 
-            // Attempt to read in data from the remote physics engine
-            try
+            if (m_receiveReady)
             {
-                // Begin a blocking operation to read in data from the
-                // remote physics engine
-                currPacket = m_udpClient.Receive(ref m_remoteHost);
-
-                // Check to see if a valid packet was received
-                if (currPacket != null)
+                // Attempt to read in data from the remote physics engine
+                try
                 {
-                    // Queue up the new packet in a thread-safe manner
-                    m_incomingMutex.WaitOne();
-                    m_incomingPackets.Enqueue(temp);
-                    m_incomingMutex.ReleaseMutex();
+                    // Begin a blocking operation to read in data from the
+                    // remote physics engine
+                    m_udpClient.BeginReceive(new AsyncCallback(ReceiveCallback),
+                        m_udpClient);
+                    m_receiveReady = false;
                 }
-            }
-            catch (SocketException socketException)
-            {
-                // Inform the user that the plugin has failed to establish an
-                // UDP connection to the remote physics engine
-                m_log.ErrorFormat("{0}: Unable to establish UDP " +
-                    "connection to remote physics engine.", LogHeader);
+                catch (SocketException socketException)
+                {
+                    // Inform the user that the plugin has failed to establish
+                    // an UDP connection to the remote physics engine
+                    m_log.ErrorFormat("{0}: Unable to establish UDP " +
+                        "connection to remote physics engine.", LogHeader);
+                }
             }
         }
 
@@ -384,6 +384,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     "physics engine over UDP.", LogHeader);
             }
 
+            m_receiveReady = true;
         }
 
         /// <summary>
