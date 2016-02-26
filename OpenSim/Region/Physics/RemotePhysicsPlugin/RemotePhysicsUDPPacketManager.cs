@@ -203,11 +203,22 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// <param name="packet">The byte array to be sent as a packet</param>
         public void SendPacket(byte[] packet)
         {
-            // Enqueue the packet into the outgoing queue in a thread-safe
-            // manner, so that it can be sent in a subsequent update
-            m_outgoingMutex.WaitOne();
-            m_outgoingPackets.Enqueue(packet);
-            m_outgoingMutex.ReleaseMutex();
+            // Attempt to send the packet to the remote physics engine
+            try
+            {
+                // Start the non-blocking send operation for the dequeued
+                // outgoing packet
+                m_udpClient.BeginSend(packet, packet.Length,
+                    m_remoteHost,
+                    new AsyncCallback(SendCallback), m_udpClient);
+            }
+            catch (SocketException socketException)
+            {
+                // Inform the user that the plugin has failed to establish
+                // an UDP connection to the remote physics engine
+                m_log.ErrorFormat("{0}: Unable to establish UDP " +
+                    "connection to remote physics engine.", LogHeader);
+            }
         }
 
         /// <summary>
@@ -257,10 +268,6 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             while (!m_stopUpdates)
             {
                 Update();
-
-                // Sleep the thread for 5 milliseconds, so that it doesn't
-                // eat up too many resources
-                Thread.Sleep(5);
             }
         }
 
@@ -273,48 +280,26 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         {
             byte[] currPacket;
 
-            while (m_outgoingPackets.Count > 0)
+            // Attempt to read in data from the remote physics engine
+            try
             {
-                // Retrieve the next packe in the queue in a thread-safe manner
-                m_outgoingMutex.WaitOne();
-                currPacket = m_outgoingPackets.Dequeue();
-                m_outgoingMutex.ReleaseMutex();
+                 currPacket = m_udpClient.Receive(ref m_remoteHost);
 
-                try
-                {
-                    // Start the non-blocking send operation for the dequeued
-                    // outgoing packet
-                    m_udpClient.BeginSend(currPacket, currPacket.Length,
-                        m_remoteHost,
-                        new AsyncCallback(SendCallback), m_udpClient);
-                }
-                catch (SocketException socketException)
-                {
-                    // Inform the user that the plugin has failed to establish
-                    // an UDP connection to the remote physics engine
-                    m_log.ErrorFormat("{0}: Unable to establish UDP " +
-                        "connection to remote physics engine.", LogHeader);
-                }
+                 if (currPacket != null)
+                 {
+                     // Add the new packet to the incoming queue in a
+                     // thread-safe manner
+                     m_incomingMutex.WaitOne();
+                     m_incomingPackets.Enqueue(currPacket);
+                     m_incomingMutex.ReleaseMutex();
+                 }
             }
-
-            if (m_receiveReady)
+            catch (SocketException socketException)
             {
-                // Attempt to read in data from the remote physics engine
-                try
-                {
-                    // Begin a blocking operation to read in data from the
-                    // remote physics engine
-                    m_udpClient.BeginReceive(new AsyncCallback(ReceiveCallback),
-                        m_udpClient);
-                    m_receiveReady = false;
-                }
-                catch (SocketException socketException)
-                {
-                    // Inform the user that the plugin has failed to establish
-                    // an UDP connection to the remote physics engine
-                    m_log.ErrorFormat("{0}: Unable to establish UDP " +
-                        "connection to remote physics engine.", LogHeader);
-                }
+                // Inform the user that the plugin has failed to establish
+                // an UDP connection to the remote physics engine
+                m_log.ErrorFormat("{0}: Unable to establish UDP " +
+                    "connection to remote physics engine.", LogHeader);
             }
         }
 

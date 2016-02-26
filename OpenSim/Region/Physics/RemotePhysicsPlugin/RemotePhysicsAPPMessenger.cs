@@ -4440,7 +4440,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 Update();
 
                 // Sleep the thread to ensure that it doesn't hog resources
-                Thread.Sleep(30);
+                Thread.Sleep(10);
 
                 Watchdog.UpdateThread();
             }
