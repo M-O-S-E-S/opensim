@@ -464,7 +464,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 RemoteConfiguration.DefaultRestitution, m_groundPlaneID,
                 RemoteConfiguration.GroundPlaneHeight,
                 new OpenMetaverse.Vector3(0.0f, 0.0f, 1.0f));
-            
+
             // Indicate that the scene is now initialized
             m_initialized = true;
         }
@@ -822,12 +822,32 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     if (currAvatar.IsColliding)
                         m_remoteMessenger.UpdateActorVelocity(
                             currAvatar.LocalID, currAvatar.TargetVelocity);
+
+                    // Send any collisions and physical property updates this
+                    // avatar has to the simulator
+                    currAvatar.SendCollisions();
+                    currAvatar.RequestPhysicsterseUpdate();
                 }
             }
 
             // Send a message to the remote physiscs simulator so that it will
             // simulate the timestep
             RemoteMessenger.AdvanceTime(timeStep);
+
+            // Go through each of the primitives and send their updates to
+            // the simulator
+            lock (m_primitivesLock)
+            {
+                foreach(KeyValuePair<uint, RemotePhysicsPrimitive> prim in
+                        m_primitives)
+                {
+                    // Send any collisions and physical property updates this
+                    // primitive has to the simulator
+                    prim.Value.SendCollisions();
+                    //if (prim.Value.m_linkParent == null)
+                    prim.Value.RequestPhysicsterseUpdate();
+                }
+            }
 
             // Update the current time & simulation step
             CurrentSimulationTime = Util.EnvironmentTickCount();
@@ -1048,12 +1068,6 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     avatar.UpdateVelocity(linearVelocity);
                     avatar.UpdateRotationalVelocity(angularVelocity);
 
-                    // Hack for getting the simulator to update animations
-                    avatar.SendCollisions();
-
-                    // Send an update of physical properties to the simulator
-                    avatar.RequestPhysicsterseUpdate();
-
                     // Indicate that the actor in question was found
                     actorFound = true;
                 }
@@ -1077,13 +1091,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                prim.UpdatePosition(position);
                prim.UpdateOrientation(orientation);
                prim.UpdateVelocity(linearVelocity);
-
-               // Hack for getting the simulator to update animations
-               prim.SendCollisions();
-
-               // Send an update of the physical properties of the primitive
-               // to the simulator
-               prim.RequestPhysicsterseUpdate();
+               prim.UpdateRotationalVelocity(angularVelocity);
 
                // Indicate that this object has been updated during the
                // current step

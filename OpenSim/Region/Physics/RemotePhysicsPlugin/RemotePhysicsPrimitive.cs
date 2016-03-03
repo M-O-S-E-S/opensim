@@ -627,8 +627,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// <param name="newVelocity">The new velocity of the primitive</param>
         public void UpdateVelocity(OpenMetaverse.Vector3 newVelocity)
         {
-            // Update the linear velocity of the primitive
-            m_velocity = newVelocity;
+            // Update the linear velocity of the primitive if it is not part
+            // of a linkset (in which case it will use its parent's velocity)
+            if (m_linkParent != null)
+                m_velocity = newVelocity;
         }
 
         /// <summary>
@@ -665,8 +667,11 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// primitive</param>
         public void UpdateRotationalVelocity(OpenMetaverse.Vector3 newVelocity)
         {
-            // Update the angular (rotational) velocity of the primitive
-            m_rotationalVelocity = newVelocity;
+            // Update the angular (rotational) velocity of the primitive if it
+            // is not part a linkset (in which case it will use its parent's
+            // rotational velocity)
+            if (m_linkParent != null)
+                m_rotationalVelocity = newVelocity;
         }
 
         /// <summary>
@@ -686,12 +691,15 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_position = value;
 
                 // Schedule an update to be sent right before the time is
-                // advanced
-                ParentScene.AddActorTaintCallback(delegate()
+                // advanced, if this primitive is not a child of a linkset
+                if (m_linkParent != null)
                 {
-                    ParentScene.RemoteMessenger.UpdateActorPosition(
-                        LocalID, m_position);
-                });
+                    ParentScene.AddActorTaintCallback(delegate()
+                    {
+                        ParentScene.RemoteMessenger.UpdateActorPosition(
+                            LocalID, m_position);
+                    });
+                }
             }
         }
 
@@ -723,12 +731,15 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_orientation = value;
 
                 // Schedule an update to be sent right before the time is
-                // advanced
-                ParentScene.AddActorTaintCallback(delegate()
+                // advanced, if this primitive is not a child of a linkset
+                if (m_linkParent != null)
                 {
-                    ParentScene.RemoteMessenger.UpdateActorOrientation(
-                        LocalID, m_orientation);
-                });
+                    ParentScene.AddActorTaintCallback(delegate()
+                    {
+                        ParentScene.RemoteMessenger.UpdateActorOrientation(
+                            LocalID, m_orientation);
+                    });
+                }
             }
         }
 
@@ -789,6 +800,17 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         }
 
         /// <summary>
+        /// Sends updated properties of the primitive to the simulator.
+        /// </summary>
+        public override void RequestPhysicsterseUpdate()
+        {
+            // Only send the updates, if this primitive is not a child of a
+            // linkset
+            if (m_linkParent == null)
+                base.RequestPhysicsterseUpdate();
+        }
+
+        /// <summary>
         /// Rebuilds the primitive's representation in the remote physics
         /// engine.
         /// </summary>
@@ -802,15 +824,22 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             uint actorID;
             Vector3 shapePos;
             Quaternion shapeOrient;
+            bool shapeSuccess;
 
             // Remove the actor from the remote engine
             ParentScene.RemoteMessenger.RemoveActor(LocalID);
 
+            // Start out assuming that the shape has been successfully
+            // rebuilt
+            shapeSuccess = true;
+
+            // Check to see if the shape of this primitive has to be rebuilt
+            // in the remote engine
             if (buildShape)
             {
                 // Remove the old shape from the remote engine
                 ParentScene.RemoteMessenger.RemoveShape(m_primShapeID);
- 
+
                 // Check to see if this primitive's shape is simple
                 if (IsRegularShape())
                 {
@@ -909,6 +938,9 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                             // with all the assets, so mark the state as such
                             PrimAssetState = AssetState.FAILED_MESHING;
                         }
+
+                        // Indicate that the shape was not built successfully
+                        shapeSuccess = false;
                     }
                 }
             }
@@ -949,9 +981,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             }
 
             // Re-attach the shape
-            ParentScene.RemoteMessenger.AttachShape(actorID,
-                m_primShapeID, Density, Friction, Friction, Restitution,
-                shapeOrient, shapePos);
+            if (shapeSuccess)
+            {
+                ParentScene.RemoteMessenger.AttachShape(actorID,
+                    m_primShapeID, Density, Friction, Friction, Restitution,
+                    shapeOrient, shapePos);
+            }
         }
 
         /// <summary>
@@ -1234,10 +1269,19 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 // This is done to avoid conflicting linking use-cases provided
                 // by OpenSim
                 ParentScene.AddActorTaintCallback(ComputeLinkset);
+
+                // Clear the velocities on this primitive as it will now start
+                // behaving according to the velocity of its parent
+                m_velocity = OpenMetaverse.Vector3.Zero;
+                m_rotationalVelocity = OpenMetaverse.Vector3.Zero;
             }
         }
 
-        public void ComputeLinkset()
+        /// <summary>
+        /// Computes the position and orientation of the primitive relative to
+        /// a linkset parent.
+        /// </summary>
+        protected void ComputeLinkset()
         {
             // Calculate the position of this primitive relative to the
             // parent primitive
