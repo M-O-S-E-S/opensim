@@ -221,7 +221,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // actor
             ParentScene.RemoteMessenger.CreateDynamicActor(m_actorID, Position,
                 Orientation, 1.0f, m_velocity,
-                new OpenMetaverse.Vector3(0.0f, 0.0f, 0.0f));
+                new OpenMetaverse.Vector3(0.0f, 0.0f, 0.0f), true);
 
             // Fetch a unique identifier for this avatar's shape
             m_avatarShapeID = ParentScene.GetNewShapeID();

@@ -911,7 +911,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 // Send a message that creates an actor for the height map
                 RemoteMessenger.CreateStaticActor(m_terrainID,
                     OpenMetaverse.Vector3.Zero,
-                    OpenMetaverse.Quaternion.Identity);
+                    OpenMetaverse.Quaternion.Identity, false);
             }
 
             // Create the shape for the height map

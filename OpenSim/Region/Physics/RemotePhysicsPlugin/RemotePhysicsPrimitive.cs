@@ -965,13 +965,17 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     // Re-add the primitive as a dynamic actor
                     ParentScene.RemoteMessenger.CreateDynamicActor(
                         LocalID, Position, Orientation, 1.0f,
-                        Velocity, m_rotationalVelocity);
+                        Velocity, m_rotationalVelocity,
+                        ParentScene.RemoteConfiguration.
+                            ReportNonAvatarCollisions);
                 }
                 else
                 {
                     // Re-add the primitive as a static actor
                     ParentScene.RemoteMessenger.CreateStaticActor(
-                        LocalID, Position, Orientation);
+                        LocalID, Position, Orientation,
+                        ParentScene.RemoteConfiguration.
+                            ReportNonAvatarCollisions);
                 }
 
                 // Use the default position to re-attach the shape

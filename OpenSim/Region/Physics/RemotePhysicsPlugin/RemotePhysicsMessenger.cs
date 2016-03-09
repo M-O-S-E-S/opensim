@@ -141,8 +141,10 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// created</param>
         /// <param name="position">The position of the actor</param>
         /// <param name="orientation">The orientation of the actor</param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving the actor should be reported</param>
         void CreateStaticActor(uint actorID, OpenMetaverse.Vector3 position,
-            OpenMetaverse.Quaternion orientation);
+            OpenMetaverse.Quaternion orientation, bool reportCollisions);
 
         /// <summary>
         /// Creates a new dynamic actor in the remote physics engine.
@@ -157,10 +159,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// actor</param>
         /// <param name="angularVelocity">The angular velocity of this
         /// actor</param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving the actor should be reported</param>
         void CreateDynamicActor(uint actorID, OpenMetaverse.Vector3 position, 
             OpenMetaverse.Quaternion orientation, float gravityModifier, 
             OpenMetaverse.Vector3 linearVelocity,
-            OpenMetaverse.Vector3 angularVelocity);
+            OpenMetaverse.Vector3 angularVelocity, bool reportCollisions);
 
         /// <summary>
         /// Create a new static actor or update the state of an existing

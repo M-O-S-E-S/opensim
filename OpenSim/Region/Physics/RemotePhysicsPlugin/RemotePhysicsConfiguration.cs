@@ -126,6 +126,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// </summary>
         public int CrossingFailuresBeforeOutOfBounds { get; protected set; }
 
+        /// <summary>
+        /// Indicates whether collisions not involving avatars will get reported
+        /// to the simulator.
+        /// </summary>
+        public bool ReportNonAvatarCollisions { get; protected set; }
+
         #endregion
 
         public RemotePhysicsConfiguration()
@@ -157,6 +163,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             PacketManagerInternalThread = true;
             MessengerInternalThread = true;
             CrossingFailuresBeforeOutOfBounds = 5;
+            ReportNonAvatarCollisions = true;
         }
 
         public void Initialize(IConfig config)
@@ -277,6 +284,11 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             // crossing failures before it is considered out of bounds
             CrossingFailuresBeforeOutOfBounds = config.GetInt(
                 "CrossingFailuresBeforeOutOfBounds", 5);
+
+            // Read in whether collisions not involving avatars should be  
+            // reported; the default value is true
+            ReportNonAvatarCollisions = config.GetBoolean(
+                "ReportNonAvatarCollisions", true);
         }
     }
 }

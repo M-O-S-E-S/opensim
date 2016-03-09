@@ -162,6 +162,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             public APPActorID actor;
             public APPVector position;
             public APPQuat orientation;
+            public uint reportCollisions;
         }
 
         /// <summary>
@@ -169,7 +170,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// </summary>
         protected static readonly int m_APPCreateStaticActorSize =
             m_APPHeaderSize + m_APPActorIDSize + m_APPVectorSize +
-            m_APPQuatSize;
+            m_APPQuatSize + sizeof(uint);
  
         /// <summary>
         /// An instance of the create static actor message that will be used for
@@ -196,6 +197,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             public float gravityModifier;
             public APPVector linearVelocity;
             public APPVector angularVelocity;
+            public uint reportCollisions;
         }
 
         /// <summary>
@@ -203,7 +205,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// </summary>
         protected static readonly int m_APPCreateDynamicActorSize =
             m_APPHeaderSize + m_APPActorIDSize + m_APPVectorSize * 3 +
-            m_APPQuatSize + sizeof(float);
+            m_APPQuatSize + sizeof(float) + sizeof(uint);
  
         /// <summary>
         /// An instance of the create dynamic actor message that will be
@@ -1345,13 +1347,16 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// <param name="actorID">The unique ID of the actor</param>
         /// <param name="position">The position of the actor</param>
         /// <param name="orientation">The orientation of the actor</param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving the actor should be reported</param>
         public void CreateStaticActor(uint actorID,
             OpenMetaverse.Vector3 position,
-            OpenMetaverse.Quaternion orientation)
+            OpenMetaverse.Quaternion orientation, bool reportCollisions)
         {
             byte[] staticActorArray;
             int offset;
             ushort tempValue;
+            byte[] tempArray;
 
             // Check to see if the messenger has been initialized; if it has
             // not, exit out
@@ -1384,6 +1389,18 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_createStaticActor.orientation.z = orientation.Z;
                 m_createStaticActor.orientation.w = orientation.W;
  
+                // Convert the report collisions flag into an unsigned integer
+                if (reportCollisions)
+                {
+                    m_createStaticActor.reportCollisions =
+                        (uint)IPAddress.HostToNetworkOrder(1);
+                }
+                else
+                {
+                    m_createStaticActor.reportCollisions =
+                        (uint)IPAddress.HostToNetworkOrder(0);
+                }
+
                 // Convert the message to a byte array, so that it can be sent
                 // to the remote physics engine
                 // Start by allocating the byte array
@@ -1404,6 +1421,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 offset += ConvertAPPQuaternionToBytes(
                     m_createStaticActor.orientation, ref staticActorArray,
                     offset);
+
+                // Convert the report collisions flag
+                tempArray = BitConverter.GetBytes(
+                    m_createStaticActor.reportCollisions);
+                Buffer.BlockCopy(tempArray, 0, staticActorArray, offset,
+                    sizeof(uint));
             }
 
             // Now that the byte array has been constructed, send it to the
@@ -1426,15 +1449,18 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// (in meters/second)</param>
         /// <param name="angularVelocity">The angular velocity of the actor
         /// (in meters/second)</param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving the actor should be reported</param>
         public void CreateDynamicActor(uint actorID,
             OpenMetaverse.Vector3 position,
             OpenMetaverse.Quaternion orientation, float gravityModifier,
             OpenMetaverse.Vector3 linearVelocity,
-            OpenMetaverse.Vector3 angularVelocity)
+            OpenMetaverse.Vector3 angularVelocity, bool reportCollisions)
         {
             byte[] dynamicActorArray;
             ushort tempValue;
             int offset;
+            byte[] tempArray;
 
             // Check to see if the messenger has been initialized; if it has
             // not, exit out
@@ -1473,6 +1499,14 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_createDynamicActor.angularVelocity.x = angularVelocity.X;
                 m_createDynamicActor.angularVelocity.y = angularVelocity.Y;
                 m_createDynamicActor.angularVelocity.z = angularVelocity.Z;
+
+                // Convert the report collisions flag into an unsigned integer
+                if (reportCollisions)
+                    m_createDynamicActor.reportCollisions =
+                        (uint)IPAddress.HostToNetworkOrder(1);
+                else
+                    m_createDynamicActor.reportCollisions =
+                        (uint)IPAddress.HostToNetworkOrder(0);
  
                 // Convert the message into a byte array, so that it can
                 // be sent to the remote physics engine
@@ -1509,6 +1543,12 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 offset += ConvertAPPVectorToBytes(
                     m_createDynamicActor.angularVelocity,
                     ref dynamicActorArray, offset);
+
+                // Convert the report collisions flag
+                tempArray = BitConverter.GetBytes(
+                    m_createDynamicActor.reportCollisions);
+                Buffer.BlockCopy(tempArray, 0, dynamicActorArray, offset,
+                    sizeof(uint));
             }
 
             // Now that the byte array has been constructed, send it to the
