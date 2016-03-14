@@ -477,11 +477,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
             // Send the information over to PhysX unmannaged and make
             // sure to set initialized to true
+            // Collisions involving avatars should always be reported
             m_pxScene.PhysX.CreateCharacterCapsule(LocalID, Name,
                 m_rawPosition, m_orientation, m_shapeID, Friction, Friction,
                 Restitution,  ComputeAvatarHalfHeight(), 
                 Math.Min(m_currentSize.X, m_currentSize.Y) / 2.0f, Density,
-                true);
+                true, true);
 
             // Add a joint between this avatar and the ground plane in
             // order to keep the avatar always standing up
@@ -2466,6 +2467,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             float currLOD;
             RequestAssetDelegate assetDelegate;
             bool isPhysical = false;
+            bool reportCollisions;
 
             // Check to see if this object is part of a linkset
             if (m_linkParent != null)
@@ -2490,7 +2492,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
             // Indicate that the shape has not yet been built
             m_isObjectBuilt = false;
-            
+
+            // Record whether collisions not involving avatars
+            // should be reported
+            reportCollisions =
+                m_pxScene.UserConfig.ReportNonAvatarCollisions;
+           
             lock (m_shapeLock)
             {
                 // Check it this is an avatar or a prim 
@@ -2509,7 +2516,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                         base.Friction, base.Restitution,
                         ComputeAvatarHalfHeight(), 
                         Math.Min(m_currentSize.X, m_currentSize.Y) / 2.0f, 
-                        Density, true);
+                        Density, true, true);
 
                     // Now that the physical object has been created add the 
                     // joint holding up the avatar back to the avatar
@@ -2573,7 +2580,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                                     Name, m_rawPosition, m_shapeID, Friction,
                                     Friction, Restitution,
                                     m_currentSize.X / 2.0f, Density,
-                                    isPhysical);
+                                    isPhysical, reportCollisions);
                             }
 
                             // Mark that the object has been created to prevent
@@ -2608,7 +2615,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                                     (m_currentSize.X / 2.0f), 
                                     (m_currentSize.Y / 2.0f),
                                     (m_currentSize.Z / 2.0f), Density, 
-                                    isPhysical);
+                                    isPhysical, reportCollisions);
                             }
 
                             // Mark that the object has been created to
@@ -2671,7 +2678,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                                 m_pxScene.PhysX.CreateObjectTriangleMesh(
                                     LocalID, Name, m_rawPosition, m_shapeID,
                                     Friction, Friction, Restitution,
-                                    vertices, indices, isPhysical);
+                                    vertices, indices, isPhysical,
+                                    reportCollisions);
                             }
                         }
                         else
@@ -2697,7 +2705,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                                 m_pxScene.PhysX.CreateObjectConvexMesh(
                                     LocalID, Name, m_rawPosition, m_shapeID,
                                     Friction, Friction, Restitution,
-                                    vertices, Density, isPhysical);
+                                    vertices, Density, isPhysical,
+                                    reportCollisions);
                             }
                         }
 

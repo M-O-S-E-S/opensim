@@ -330,12 +330,14 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="position">The global position of the actor</param>
         /// <param name="isDynamic">Indicates whether the actor will be
         /// static or dynamic; true means dynamic</param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving this actor should be reported</param>
         public void CreateObject(uint id, string name, Vector3 position,
-            bool isDynamic)
+            bool isDynamic, bool reportCollisions)
         {
             // Create actor inside of the wrapper
             PxAPI.createActor(id, name, position.X, position.Y,
-            position.Z, isDynamic);
+            position.Z, isDynamic, reportCollisions);
         }
 
 
@@ -563,14 +565,17 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="density">Actor's density</param>
         /// <param name="isDynamic">Whether the actor is static or dynamic
         /// </param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving this actor should be reported</param>
         public void CreateObjectSphere(uint id, string name, Vector3 pos, 
             uint shapeId, float staticFriction, float dynamicFriction,
-            float restitution, float radius, float density, bool isDynamic)
+            float restitution, float radius, float density, bool isDynamic,
+            bool reportCollisions)
         {
             // Create sphere actor inside of the wrapper
             PxAPI.createActorSphere(id, name, pos.X, pos.Y, pos.Z,
                 shapeId, staticFriction, dynamicFriction, restitution, radius,
-                density, isDynamic);
+                density, isDynamic, reportCollisions);
         }
 
 
@@ -594,15 +599,17 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="density">Actor's density</param>
         /// <param name="isDynamic">Whether the actor is static or dynamic
         /// </param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving this actor should be reported</param>
         public void CreateObjectBox(uint id, string name, Vector3 pos,
             uint shapeId, float staticFriction, float dynamicFriction,
             float restitution, float halfX, float halfY, float halfZ,
-            float density, bool isDynamic)
+            float density, bool isDynamic, bool reportCollisions)
         {
             // Create box actor inside of the wrapper
             PxAPI.createActorBox(id, name, pos.X, pos.Y, pos.Z,
                 shapeId, staticFriction, dynamicFriction, restitution,
-                halfX, halfY, halfZ, density, isDynamic);
+                halfX, halfY, halfZ, density, isDynamic, reportCollisions);
         }
 
 
@@ -626,16 +633,18 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="density">Actor's density</param>
         /// <param name="isDynamic">Whether the actor is static or dynamic
         /// </param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving this actor should be reported</param>
         public void CreateCharacterCapsule(uint id, string name, Vector3 pos, 
             Quaternion rot, uint shapeId, float staticFriction,
             float dynamicFriction, float restitution, float halfHeight,
-            float radius, float density, bool isDynamic)
+            float radius, float density, bool isDynamic, bool reportCollisions)
         {
             // Create capsule actor inside of the wrapper
             PxAPI.createActorCapsule(id, name, pos.X, pos.Y, pos.Z,
                 rot.X, rot.Y, rot.Z, rot.W, shapeId, staticFriction,
                 dynamicFriction, restitution, halfHeight,
-                radius, density, isDynamic);
+                radius, density, isDynamic, reportCollisions);
         }
 
 
@@ -660,10 +669,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="density">Actor's density</param>
         /// <param name="isDynamic">Whether the actor is static or dynamic
         /// </param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving this actor should be reported</param>
         public void CreateObjectTriangleMesh(uint id, string name, Vector3 pos,
             uint shapeId, float staticFriction, float dynamicFriction,
             float restitution, Vector3[] vertices, int[] indices,
-            bool isDynamic)
+            bool isDynamic, bool reportCollisions)
         {
            float[] vertexArray;
 
@@ -681,7 +692,7 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             PxAPI.createActorTriangleMesh(id, name, pos.X, pos.Y, pos.Z,
                 shapeId, staticFriction, dynamicFriction, restitution,
                 vertexArray, indices, vertices.Length, indices.Length,
-                isDynamic);
+                isDynamic, reportCollisions);
         }
 
 
@@ -704,10 +715,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// <param name="density">Actor's density</param>
         /// <param name="isDynamic">Whether the actor is static or dynamic
         /// </param>
+        /// <param name="reportCollisions">Indicates whether collisions
+        /// involving this actor should be reported</param>
         public void CreateObjectConvexMesh(uint id, string name, Vector3 pos,
             uint shapeId, float staticFriction, float dynamicFriction,
             float restitution, Vector3[] vertices, float density,
-            bool isDynamic)
+            bool isDynamic, bool reportCollisions)
         {
            float[] vertexArray;
 
@@ -724,7 +737,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // to PhysX
             PxAPI.createActorConvexMesh(id, name, pos.X, pos.Y, pos.Z,
                 shapeId, staticFriction, dynamicFriction, restitution,
-                vertexArray, vertices.Length, density, isDynamic);
+                vertexArray, vertices.Length, density, isDynamic,
+                reportCollisions);
         }
 
 
@@ -1139,7 +1153,9 @@ namespace OpenSim.Region.Physics.PhysXPlugin
 
             [DllImport("PhysXWrapper")]
                 public static extern void createActor(uint id, string name,
-                    float x, float y, float z, bool isDynamic);
+                    float x, float y, float z, bool isDynamic,
+                    bool reportCollisions);
+
             [DllImport("PhysXWrapper")]
                 public static extern void attachSphere(uint id, uint shapeId,
                     float staticFriction, float dynamicFriction,
@@ -1182,14 +1198,15 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     string name, float x, float y, float z,
                     uint shapeId, float staticFriction, float dynamicFriction,
                     float restitution, float radius, float density,
-                    bool isDynamic);
+                    bool isDynamic, bool reportCollisions);
 
             [DllImport("PhysXWrapper")]
                 public static extern void createActorBox(uint id,
                     string name, float posX, float posY, float posZ,
                     uint shapeId, float staticFriction, float dynamicFriction,
                     float restitution, float halfX, float halfY,
-                    float halfZ, float density, bool isDynamic);
+                    float halfZ, float density, bool isDynamic,
+                    bool reportCollisions);
 
             [DllImport("PhysXWrapper")]
                 public static extern void createActorCapsule(uint id,
@@ -1197,21 +1214,23 @@ namespace OpenSim.Region.Physics.PhysXPlugin
                     float rotX, float rotY, float rotZ, float rotW,
                     uint shapeId, float staticFriction, float dynamicFriction,
                     float restitution, float halfHeight, float radius,
-                    float density, bool isDynamic);
+                    float density, bool isDynamic, bool reportCollisions);
 
             [DllImport("PhysXWrapper")]
                 public static extern void createActorTriangleMesh(uint id,
                     string name, float posX, float posY, float posZ,
                     uint shapeId, float staticFriction, float dynamicFriction,
                     float restitution, float[] vertices, int[] indices,
-                    int vertexCount, int indexCount, bool isDynamic);
+                    int vertexCount, int indexCount, bool isDynamic,
+                    bool reportCollisions);
 
             [DllImport("PhysXWrapper")]
                 public static extern void createActorConvexMesh(uint id,
                     string name, float posX, float posY, float posZ,
                     uint shapeId, float staticFriction, float dynamicFriction,
                     float restitution, float[] vertices, 
-                    int vertexCount, float density, bool isDynamic);
+                    int vertexCount, float density, bool isDynamic,
+                    bool reportCollisions);
 
             [DllImport("PhysXWrapper")]
                 public static extern void removeActor(uint id);

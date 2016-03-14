@@ -316,6 +316,12 @@ namespace OpenSim.Region.Physics.PhysXPlugin
         /// </summary>
         public float HeightFieldScaleFactor { get; protected set; }
 
+        /// <summary>
+        /// Indicates whether collisions not involving avatars will get reported
+        /// to the simulator.
+        /// </summary>
+        public bool ReportNonAvatarCollisions { get; protected set; }
+
         #endregion
 
         /// <summary>
@@ -380,6 +386,8 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             VehicleLinearFactor = new Vector3(1.0f, 1.0f, 1.0f);
             VehicleAngularFactor = new Vector3(1.0f, 1.0f, 1.0f);
             VehicleInertiaFactor = new Vector3(1.0f, 1.0f, 1.0f);
+
+            ReportNonAvatarCollisions = true;
         }
 
 
@@ -544,6 +552,11 @@ namespace OpenSim.Region.Physics.PhysXPlugin
             // banking timescale by 
             VehicleAngularBankingTimescaleFudge = config.GetFloat(
                 "VehicleAngularBankingTimescaleFudge", 60.0f);
+
+            // Read in whether collisions not involving avatars should be
+            // reported; the default value is true
+            ReportNonAvatarCollisions = config.GetBoolean(
+                "ReportNonAvatarCollisions", true);
         }
     }
 }
