@@ -162,7 +162,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             public APPActorID actor;
             public APPVector position;
             public APPQuat orientation;
-            public uint reportCollisions;
+            public uint flags;
         }
 
         /// <summary>
@@ -197,7 +197,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
             public float gravityModifier;
             public APPVector linearVelocity;
             public APPVector angularVelocity;
-            public uint reportCollisions;
+            public uint flags;
         }
 
         /// <summary>
@@ -1388,18 +1388,21 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_createStaticActor.orientation.y = orientation.Y;
                 m_createStaticActor.orientation.z = orientation.Z;
                 m_createStaticActor.orientation.w = orientation.W;
+
+                // Initialize the actor flags field to its default value
+                m_createStaticActor.flags = 0;
  
-                // Convert the report collisions flag into an unsigned integer
+                // Add the report collisions flag to the flags field
+                // The report collisions flag is the least significant bit
+                // of the flags field
                 if (reportCollisions)
-                {
-                    m_createStaticActor.reportCollisions =
-                        (uint)IPAddress.HostToNetworkOrder(1);
-                }
-                else
-                {
-                    m_createStaticActor.reportCollisions =
-                        (uint)IPAddress.HostToNetworkOrder(0);
-                }
+                    m_createStaticActor.flags |= 1 << 0;
+
+                // Convert the flags to network byte order, so that it
+                // can be properly deserialized by the remote physics engine
+                m_createStaticActor.flags =
+                    (uint)IPAddress.HostToNetworkOrder(
+                    m_createStaticActor.flags);
 
                 // Convert the message to a byte array, so that it can be sent
                 // to the remote physics engine
@@ -1423,8 +1426,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     offset);
 
                 // Convert the report collisions flag
-                tempArray = BitConverter.GetBytes(
-                    m_createStaticActor.reportCollisions);
+                tempArray = BitConverter.GetBytes(m_createStaticActor.flags);
                 Buffer.BlockCopy(tempArray, 0, staticActorArray, offset,
                     sizeof(uint));
             }
@@ -1500,13 +1502,20 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                 m_createDynamicActor.angularVelocity.y = angularVelocity.Y;
                 m_createDynamicActor.angularVelocity.z = angularVelocity.Z;
 
-                // Convert the report collisions flag into an unsigned integer
+                // Initialize the actor flags field to its default value
+                m_createDynamicActor.flags = 0;
+
+                // Add the report collisions flag to the flags field
+                // The report collisions flag is the least significant bit
+                // of the flags field
                 if (reportCollisions)
-                    m_createDynamicActor.reportCollisions =
-                        (uint)IPAddress.HostToNetworkOrder(1);
-                else
-                    m_createDynamicActor.reportCollisions =
-                        (uint)IPAddress.HostToNetworkOrder(0);
+                    m_createDynamicActor.flags = 1 << 0;
+
+                // Convert the flags to network byte order, so that it
+                // can be properly deserialized by the remote physics engine
+                m_createDynamicActor.flags =
+                    (uint)IPAddress.HostToNetworkOrder(
+                    (int)m_createDynamicActor.flags);
  
                 // Convert the message into a byte array, so that it can
                 // be sent to the remote physics engine
@@ -1545,8 +1554,7 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
                     ref dynamicActorArray, offset);
 
                 // Convert the report collisions flag
-                tempArray = BitConverter.GetBytes(
-                    m_createDynamicActor.reportCollisions);
+                tempArray = BitConverter.GetBytes(m_createDynamicActor.flags);
                 Buffer.BlockCopy(tempArray, 0, dynamicActorArray, offset,
                     sizeof(uint));
             }
