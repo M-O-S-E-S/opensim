@@ -1400,13 +1400,22 @@ namespace OpenSim.Region.Physics.RemotePhysicsPlugin
         /// push</param>
         public override void AddForce(Vector3 force, bool pushforce)
         {
+            float forceCorrectionFactor;
+
             // Check to see if this avatar has a physical representation in
             // the engine
             if (IsPhysical)
             {
+                // PhysX is able to handle the normal density value of objects,
+                // however OpenSim sends its force values assuming that the
+                // density value has been decreased by a 0.1 factor, so this
+                // variable corrects the issue
+                forceCorrectionFactor = 10.0f;
+
                 // Send a message to the remote physics engine with the
                 // new force
-                ParentScene.RemoteMessenger.ApplyForce(LocalID, force);
+                ParentScene.RemoteMessenger.ApplyForce(LocalID, force *
+                    forceCorrectionFactor);
             }
         }
 
