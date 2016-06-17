@@ -15,6 +15,16 @@ If it breaks, you get to keep *both* pieces.
 Please see BUILDING.md if you downloaded a source distribution and 
 need to build OpenSim before running it.
 
+# MOSES physx Additions
+
+This fork of Opensim has Physx physics integrated as an optional 
+physics engine.  Several libraries must be compiled by hand, including
+the NVIDIA PhysX engine.
+
+More information is available at https://redmine.militarymetaverse.org/projects/opensim-physx/wiki
+
+Git repositories for atlas and the physx-wrapper are available at https://github.com/M-O-S-E-S
+
 # Running OpenSim on Windows
 
 You will need .NET 4.0 installed to run OpenSimulator.
